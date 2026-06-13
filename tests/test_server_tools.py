@@ -10,12 +10,15 @@ from collections.abc import Iterator
 from datetime import UTC, datetime
 from pathlib import Path
 
+import httpx
 import pytest
+import respx
 
 from tattoo_feed.models import Artist, InspirationItem, MediaType, Post, Preference
 from tattoo_feed.server import app
 
 TS = datetime(2024, 3, 4, tzinfo=UTC)
+FIXTURE = Path(__file__).parent / "fixtures" / "sample.jpg"
 
 
 def _post(post_id: str = "p1") -> Post:
@@ -137,17 +140,26 @@ def test_get_feed() -> None:
     assert [p.id for p in app.get_feed()] == ["p1", "p2"]
 
 
-def test_next_inspiration_with_post_formats_metadata() -> None:
-    _install(_post("p9"))
-    text = app.next_inspiration()
-    assert "@alice" in text
-    assert "https://ig/p/p9" in text
-    assert "image preview pending" in text
+@respx.mock
+def test_next_inspiration_returns_image_then_metadata() -> None:
+    services = _install(_post("p9"))
+    services.http = httpx.Client()
+    respx.get("https://cdn/p9.jpg").mock(
+        return_value=httpx.Response(200, content=FIXTURE.read_bytes())
+    )
+    blocks = app.next_inspiration()
+    assert blocks[0].type == "image"
+    assert blocks[0].mimeType == "image/jpeg"
+    assert blocks[1].type == "text"
+    assert "@alice" in blocks[1].text
+    assert "https://ig/p/p9" in blocks[1].text
 
 
 def test_next_inspiration_when_nothing_new() -> None:
     _install(None)
-    assert "reset_seen" in app.next_inspiration()
+    blocks = app.next_inspiration()
+    assert blocks[0].type == "text"
+    assert "reset_seen" in blocks[0].text
 
 
 def test_save_to_inspiration_passes_notes() -> None:

@@ -13,10 +13,12 @@ from dataclasses import dataclass
 from pathlib import Path
 
 import httpx
-from mcp.server.fastmcp import FastMCP
+from mcp.server.fastmcp import FastMCP, Image
+from mcp.types import ImageContent, TextContent
 
 from tattoo_feed.config import load_config
 from tattoo_feed.graph.client import BusinessDiscoveryClient
+from tattoo_feed.imaging import fetch_preview
 from tattoo_feed.models import Artist, InspirationItem, Post, Preference
 from tattoo_feed.repositories.json_repo import (
     ArtistRepository,
@@ -92,13 +94,12 @@ def _get_services() -> _Services:
 
 
 def _format_post(post: Post) -> str:
-    """Render a post's metadata as readable text (image added in Chunk 8)."""
+    """Render a post's metadata as readable text to accompany its image."""
     caption = post.caption or "(no caption)"
     return (
         f"@{post.artist_handle} — {post.timestamp:%Y-%m-%d}\n"
         f"{caption}\n"
-        f"{post.permalink}\n"
-        "[image preview pending — added in a later build step]"
+        f"{post.permalink}"
     )
 
 
@@ -135,15 +136,25 @@ def get_feed(limit_per_artist: int = 10) -> list[Post]:
 
 
 @mcp.tool()
-def next_inspiration() -> str:
+def next_inspiration() -> list[ImageContent | TextContent]:
     """Show one not-yet-seen post for inspiration, then mark it seen.
 
-    Calling repeatedly walks through unseen posts; use reset_seen to start over.
+    Returns a rendered preview image (downscaled, EXIF-stripped) alongside the
+    artist handle and permalink. Calling repeatedly walks through unseen posts;
+    use reset_seen to start over.
     """
-    post = _get_services().inspiration.next_inspiration()
+    services = _get_services()
+    post = services.inspiration.next_inspiration()
     if post is None:
-        return "No new inspiration right now — call reset_seen to start over."
-    return _format_post(post)
+        return [
+            TextContent(
+                type="text",
+                text="No new inspiration right now — call reset_seen to start over.",
+            )
+        ]
+    preview = fetch_preview(post.image_url, services.http)
+    image = Image(data=preview, format="jpeg").to_image_content()
+    return [image, TextContent(type="text", text=_format_post(post))]
 
 
 @mcp.tool()
