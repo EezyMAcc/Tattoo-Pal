@@ -2,6 +2,9 @@
 .env
 data/
 
+# Local conversation exports / build logs (not source)
+build_artifacts/*.txt
+
 # Python
 __pycache__/
 *.py[cod]

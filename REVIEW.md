@@ -1,21 +1,21 @@
-# REVIEW.md — Morning verification
+# REVIEW.md — Phase 2 human verification
 
-Pre-shaped checklist for reviewing the overnight build. Work top to bottom.
-The loop should fill in the two bracketed sections at the end before stopping.
+Run top to bottom after the loop reports Chunk 5 green. The loop fills in the two
+bracketed sections at the end before stopping. As in phase 1, the things that
+matter most here are the ones automated gates **cannot** confirm: the image
+actually rendering in ChatGPT, and the real OAuth login.
 
 -----
 
-## 0. First glance (30 seconds)
+## 0. First glance
 
-- [ ] Is there a `BLOCKERS.md`? If yes, read it first — it tells you which chunk
-  stopped and why. Everything below still applies to the chunks that did land.
-- [ ] `git log --oneline` on `feat/auto-build` — expect one clean commit per
-  completed chunk (Chunk 0 → 8), newest last.
-- [ ] Working tree clean? `git status` should show nothing uncommitted.
+- [ ] `BLOCKERS.md`? If present, read it first — it says which chunk stopped and
+  why. Everything below still applies to the chunks that landed.
+- [ ] `git log --oneline` on `feat/remote-app` — one clean commit per chunk
+  (0 → 5), plus the Chunk 0 archival commit. `main` untouched.
+- [ ] `git status` clean.
 
-## 1. Gate still green (2 minutes)
-
-Re-run the full gate yourself, in the container, to confirm nothing was left red:
+## 1. Gate still green (in the container)
 
 ```bash
 uv run ruff format --check .
@@ -25,108 +25,71 @@ uv run pytest -q --cov=src/tattoo_feed --cov-report=term-missing --cov-fail-unde
 ```
 
 - [ ] All four exit 0. Coverage ≥ 90%.
+- [ ] The rewritten `next_inspiration` / image tests assert the **widget**
+  contract (outputTemplate meta + registered `ui://` resource + data URL in
+  `_meta`), not the old image block. Confirm they did not just get weakened.
 
-## 2. Go live (the first real Instagram call)
+## 2. Secrets & archival hygiene
 
-This is the first time real credentials and the real API are used — the loop
-never did this.
+- [ ] `git grep` for the token prefix / `client_secret` / private-key markers →
+  nothing committed. `.env` not staged.
+- [ ] Phase-1 docs are archived in `build_artifacts/` as `Phase1_*.md` and
+  untouched; the phase-2 governance docs live at the repo root.
 
-- [ ] Copy `.env.example` to `.env` and fill in your real `IG_ACCESS_TOKEN` and
-  `IG_USER_ID`. (`.env` is gitignored — confirm it is **not** staged.)
-- [ ] Optionally run the live integration test: `RUN_LIVE=1 uv run pytest -k live`.
-- [ ] Start the server and connect it from your MCP client (e.g. Claude Desktop).
-  It should boot and list every tool from PLAN.md §6.
+## 3. Bring it up (container + tunnel)
 
-## 3. Functional smoke test (chat with it)
+- [ ] `.env` has real Instagram creds, the IdP issuer/JWKS/audience/scopes, and
+  `NGROK_AUTHTOKEN`.
+- [ ] `docker compose up --build` brings up `server` + `ngrok`.
+- [ ] Public URL resolves (ngrok inspector at `http://localhost:4040`).
 
-- [ ] `add_artist` with a real tattoo-artist handle you follow → succeeds.
-- [ ] `add_artist` with a personal (non-professional) account → fails *cleanly*
-  with a readable error, not a stack trace.
-- [ ] `get_feed` → returns recent posts, newest-first, no videos present.
-- [ ] `next_inspiration` → returns one post you haven’t seen; calling it again
-  gives a *different* post.
-- [ ] `save_to_inspiration` then `list_inspiration` → the saved item is there,
-  in save order, with the artist handle attached.
-- [ ] `record_preference` → the assistant **proposes and asks you to confirm**
-  before writing (propose-then-confirm). Then `get_preference_summary`
-  returns it.
+## 4. Auth actually gates (the OAuth check — gates can't do this live)
 
-## 4. THE EYEBALL CHECK (image rendering — tests cannot verify this)
+- [ ] `curl https://<public-url>/mcp` with **no** token → `401` with a
+  `WWW-Authenticate: Bearer ... resource_metadata=...` header.
+- [ ] `curl https://<public-url>/.well-known/oauth-protected-resource` → metadata
+  naming your IdP.
+- [ ] In ChatGPT, add the connector (URL = public `/mcp`, Auth = **OAuth**).
+  The login flow completes and the connector lists every tool.
+- [ ] A request with an expired/garbage token is refused (not served).
 
-This is the one thing automated gates could not confirm. Look with your eyes:
+## 5. THE EYEBALL CHECK (image rendering in ChatGPT — gates cannot verify)
 
-- [ ] `next_inspiration` actually **displays the image inline** in your client.
-- [ ] The image is the **right image** for that post (cross-check the permalink).
-- [ ] Orientation is correct (not rotated/flipped — EXIF was stripped).
-- [ ] It’s a reasonable preview size (≤ 640px long edge), not full-res or tiny.
-- [ ] A carousel post shows its **first** image (not a broken/blank frame).
+This is the reason phase 2 exists. Look with your eyes:
 
-If any of these is off, it’s almost certainly isolated to `imaging.py` or the
-Chunk 8 wiring in `server/app.py` — the rest of the system is gate-verified.
+- [ ] Ask ChatGPT to call `next_inspiration`. The preview image **renders inline
+  via the widget** (not as text, not as a broken frame).
+- [ ] It is the **right image** for the post (cross-check the permalink shown).
+- [ ] Orientation correct (EXIF was applied then stripped); size is a sensible
+  preview (≤ 640px long edge), not full-res or tiny.
+- [ ] A carousel post shows its **first** image.
+- [ ] The model's narration (from `structuredContent`) has the handle + permalink
+  and does **not** contain a wall of base64 (data lives in `_meta`).
 
-## 5. Code review pass (it’s a portfolio piece)
+## 6. Functional smoke test (unchanged behaviours still work)
 
-Skim with a reviewer’s eye — this repo may go in front of an interviewer:
+- [ ] `add_artist` with a real professional handle → succeeds; a personal account
+  → clean typed error, no stack trace.
+- [ ] `get_feed` → newest-first, no videos.
+- [ ] `save_to_inspiration` then `list_inspiration` → saved item present with
+  handle attached.
+- [ ] `record_preference` → assistant proposes & asks to confirm before writing.
 
-- [ ] `core` has zero MCP imports; `server/app.py` has zero business logic.
-- [ ] Files are small and single-purpose; names are clear.
-- [ ] Docstrings + type hints throughout; errors are typed, never bare.
-- [ ] README explains setup, design decisions, and limitations honestly.
-- [ ] No secrets, no `.env`, no `data/` committed.
+## 7. Code review pass
 
-## 6. Phase-2 readiness (sanity, not a task)
-
-- [ ] Could a GUI import `core` and call the services directly, with no MCP in
-  the way? If yes, the seam held and the Inspiration/Feed/Artists tabs will
-  bolt straight on.
+- [ ] `core` still has zero MCP/HTTP/OAuth imports; `server/` holds no business
+  logic. The token verifier lives in `server/`, not `core/`.
+- [ ] New files small and single-purpose; docstrings/annotations match new
+  signatures; errors typed.
+- [ ] README explains the remote/OAuth/widget setup and the honest limitations.
 
 -----
 
 ## Loop fills these in before stopping
 
-**Chunks completed:** 0–8, all green. One commit per chunk on `feat/auto-build`,
-each passing the full gate (ruff format + ruff check + mypy --strict + pytest)
-**inside the `tattoo-feed-dev` container, at 100% coverage** (floor is 90%). No
-`BLOCKERS.md` — nothing blocked. Two extra non-chunk commits precede chunk 0:
-`chore: init` (pre-existing) and `chore: add governance docs and Docker dev
-harness` (CLAUDE.md, PLAN.md, REVIEW.md, Dockerfile, .dockerignore, run-loop.sh).
+**Chunks completed:** [ … ]
 
-**Anything I flagged for you:**
-
-- **Image rendering is NOT verified.** Automated tests only assert the image
-  block is *structurally* valid (base64, `image/jpeg`, non-zero bytes, long edge
-  ≤640). Whether it actually displays — and right-way-up — is section 4's job.
-  The EXIF fixture uses orientation 6, so pay attention to whether real photos
-  come back correctly oriented (not sideways).
-
-- **Graph error-code mapping is best-effort and unverified against the live
-  API.** All HTTP is mocked, so the mapping from Instagram errors to typed
-  errors uses documented codes/subcodes (token=190, rate-limit∈{4,17,32},
-  not-professional subcode 2207013, not-found subcode 2207006). The first time
-  you hit a *real* error (e.g. add a personal account, or let the token expire),
-  confirm it maps to the right typed error and a readable message. If Instagram's
-  actual codes differ, the mapping in `graph/client.py` is the one place to tweak.
-
-- **Two deliberate deviations from PLAN §6 contracts (UX calls):**
-  1. `remove_artist`, `remove_from_inspiration`, and `reset_seen` return a short
-     confirmation *string* rather than `None`, so the chat client shows something
-     useful. Still thin wrappers, no logic.
-  2. `save_to_inspiration(post_id)` resolves the post by scanning the *current
-     feed* (no separate post cache). You can therefore only save a post that's
-     currently in the feed / was just shown by `next_inspiration`; saving an
-     unknown id raises `TattooFeedError` with a clear message. Worth confirming
-     this matches how you expect to use it.
-
-- **Missing credentials raise the base `TattooFeedError`** (not a dedicated
-  `ConfigError`), because PLAN §5 fixes the error hierarchy. The message tells
-  you to copy `.env.example` to `.env`.
-
-- **Dependency versions** were pinned to whatever was latest-stable in the build
-  container at install time (notably `mcp==1.27.2`, `pydantic==2.13.4`,
-  `Pillow==12.2.0`, `httpx==0.28.1`; dev: `ruff==0.15.17`, `mypy==2.1.0`,
-  `pytest==9.1.0`). All exact-pinned; `uv.lock` is committed.
-
-- **`.venv` gotcha:** the gate ran in the Linux container, so the `.venv` in this
-  folder is Linux-built. If you re-run the gate directly on macOS, do a fresh
-  `uv sync` first (the committed `uv.lock` is platform-independent; the `.venv`
-  is gitignored).
+**Anything I flagged for you:** [ … e.g. SDK version bump and why; the exact
+`window.openai` field the widget reads and where it was confirmed; whether the
+SDK served RFC 9728 metadata automatically or it had to be added by hand; the
+IdP config values consumed; any deviation from PLAN.md and why … ]

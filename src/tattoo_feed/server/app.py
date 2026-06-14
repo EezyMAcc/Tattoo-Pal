@@ -203,8 +203,14 @@ def get_preference_summary() -> list[Preference]:
 
 
 def main() -> None:  # pragma: no cover
-    """Run the MCP server over stdio."""
-    mcp.run()
+    """Run the MCP server over stdio or HTTP (set MCP_TRANSPORT=http to use HTTP)."""
+    if os.environ.get("MCP_TRANSPORT") == "http":
+        # host/port live on settings; run() only takes transport + mount_path.
+        mcp.settings.host = "0.0.0.0"  # noqa: S104  bind all interfaces (in-container)
+        mcp.settings.port = int(os.environ.get("MCP_PORT", "8000"))
+        mcp.run(transport="streamable-http")
+    else:
+        mcp.run()
 
 
 if __name__ == "__main__":  # pragma: no cover

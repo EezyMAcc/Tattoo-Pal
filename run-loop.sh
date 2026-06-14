@@ -2,7 +2,7 @@
 #
 # Launch the tattoo-feed dev container interactively.
 #
-# This does NOT start the overnight build. It just drops you into a shell
+# This does NOT start the /loop build. It just drops you into a shell
 # inside the container, with this project folder mounted at /workspace.
 #
 # Isolation boundary (read this):
