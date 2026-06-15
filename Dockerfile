@@ -43,6 +43,16 @@ ENV PATH="/root/.local/bin:${PATH}"
 # Installed globally so the `claude` command is on PATH for every container.
 RUN npm install -g @anthropic-ai/claude-code
 
+# --- Skip Claude Code's first-run onboarding wizard ----------------------
+# /root is throwaway (--rm), so every container looks like a brand-new
+# machine: interactive `claude` runs its onboarding/login wizard and ignores
+# the CLAUDE_CODE_OAUTH_TOKEN we forward in (which DOES work for headless
+# `claude -p`). Pre-seeding onboarding state lets interactive `claude` skip
+# the wizard and use the env token. This holds NO credential — only the
+# "onboarding done" + workspace-trust flags — so it is safe to bake in.
+RUN printf '{"hasCompletedOnboarding":true,"theme":"dark","projects":{"/workspace":{"hasTrustDialogAccepted":true}}}' \
+        > /root/.claude.json
+
 # All work happens here. The project folder is mounted onto this path at run
 # time, so /workspace == your tattoo-feed folder on the host.
 WORKDIR /workspace
