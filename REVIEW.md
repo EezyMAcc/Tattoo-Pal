@@ -87,9 +87,59 @@ This is the reason phase 2 exists. Look with your eyes:
 
 ## Loop fills these in before stopping
 
-**Chunks completed:** [ … ]
+**Chunks completed:** Chunks 0 → 5 all committed green on `feat/remote-app`.
 
-**Anything I flagged for you:** [ … e.g. SDK version bump and why; the exact
-`window.openai` field the widget reads and where it was confirmed; whether the
-SDK served RFC 9728 metadata automatically or it had to be added by hand; the
-IdP config values consumed; any deviation from PLAN.md and why … ]
+- Chunk 0 — Baseline + SDK capability verification (`RECONCILIATION.md`)
+- Chunk 1 — HTTP transport formalised (`resolve_transport` helper, tests)
+- Chunk 2 — OAuth 2.1 resource-server protection (`server/auth.py`,
+  `IdpTokenVerifier`, `AuthError` in `errors.py`)
+- Chunk 3 — Apps SDK image widget (`server/widgets/inspiration.html`,
+  `next_inspiration` returns widget result with `_meta` image data URL)
+- Chunk 4 — Container + ngrok ingress (`Dockerfile.server`,
+  `docker-compose.yml`, `.env.example`, `scripts/run-server.sh`)
+- Chunk 5 — Docs, REVIEW, final reconciliation (this commit)
+
+**Anything I flagged for you:**
+
+1. **No `mcp` version bump needed.** `mcp==1.27.2` exposes all required APIs
+   (`AuthSettings`, `TokenVerifier`, `AccessToken`, resource registration with
+   `text/html;profile=mcp-app`). See `RECONCILIATION.md` for the verified
+   symbol list.
+
+2. **RFC 9728 metadata is served automatically by the SDK.** When
+   `mcp.settings.auth` is set to an `AuthSettings` instance, FastMCP
+   automatically serves `/.well-known/oauth-protected-resource` and emits the
+   `401 WWW-Authenticate: Bearer resource_metadata=...` challenge. No explicit
+   route or middleware was added by hand.
+
+3. **`window.openai` widget data path.** The widget (`server/widgets/inspiration.html`)
+   tries two paths confirmed in `RESEARCH.md` §1.4:
+   - Primary: `window.openai.toolOutput._meta` (host forwards `_meta` before
+     the frame loads).
+   - Fallback: a `message` event listener for
+     `ui/notifications/tool-result` → `params._meta`.
+   The image data URL, handle, caption, and permalink all travel through
+   `_meta` (not `structuredContent`) so the base64 blob never reaches the
+   model. Verify the image actually renders in ChatGPT (§5 above).
+
+4. **`MCP_AUTH_AUDIENCE` is the RFC 8707 audience.** This value must appear
+   verbatim as the `aud` claim in tokens your IdP issues, AND must match the
+   resource indicator the ChatGPT connector sends. When the ngrok URL changes,
+   update `MCP_AUTH_AUDIENCE` in `.env` **and** reconfigure the IdP. A stable
+   ngrok domain (§3 in README) prevents this churn.
+
+5. **Scope enforcement is automatic.** The SDK's `RequireAuthMiddleware`
+   checks `AccessToken.scopes` against `AuthSettings.required_scopes` and
+   returns `403 insufficient_scope` when a scope is missing.
+   `IdpTokenVerifier.verify_token` only validates the JWT shape; it never
+   checks scopes itself.
+
+6. **JWKS caching is in-process only.** `IdpTokenVerifier` caches the JWKS
+   keys in memory for the lifetime of the process. A key rotation by the IdP
+   will require a server restart to pick up new keys. This is acceptable for a
+   single-account demo but worth noting for production hardening.
+
+7. **Single-account limitation.** The `_services` singleton is built once and
+   bound to the one Instagram account set via `IG_USER_ID`. OAuth controls who
+   may call the server, not which Instagram account is queried. Multi-account
+   support is explicitly out of scope.
