@@ -1,0 +1,31 @@
+# syntax=docker/dockerfile:1
+# Production image for the tattoo-feed MCP HTTP server.
+# Source is baked in; all credentials and IdP settings come from env at run time.
+
+FROM python:3.12-slim
+
+ENV DEBIAN_FRONTEND=noninteractive
+
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends curl ca-certificates \
+    && rm -rf /var/lib/apt/lists/*
+
+# uv for dependency management and running the server.
+RUN curl -LsSf https://astral.sh/uv/install.sh | sh
+ENV PATH="/root/.local/bin:${PATH}"
+
+WORKDIR /app
+
+# Copy manifests first so the dependency layer is cached independently of source.
+COPY pyproject.toml uv.lock ./
+COPY src/ ./src/
+
+# Install production deps only — no mypy / ruff / pytest in the image.
+RUN uv sync --frozen --no-dev
+
+# Serve on HTTP transport; all other env vars are injected at run time.
+ENV MCP_TRANSPORT=http
+
+EXPOSE 8000
+
+CMD ["uv", "run", "python", "-m", "tattoo_feed.server.app"]

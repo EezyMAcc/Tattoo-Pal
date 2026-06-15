@@ -1,0 +1,50 @@
+# tattoo-feed: HTTP MCP server + ngrok TLS ingress.
+# All secrets and IdP config flow in from .env (see .env.example).
+# Start with: docker compose up --build
+# After startup, visit http://localhost:4040 to find the public ngrok URL.
+
+services:
+  server:
+    build:
+      context: .
+      dockerfile: Dockerfile.server
+    environment:
+      # Instagram credentials
+      IG_ACCESS_TOKEN: "${IG_ACCESS_TOKEN}"
+      IG_USER_ID: "${IG_USER_ID}"
+      # Data directory — must match the volume mount path below.
+      TATTOO_FEED_DATA_DIR: /app/data
+      # OAuth 2.1 resource-server settings (see RESEARCH.md §§2-4)
+      MCP_AUTH_ISSUER: "${MCP_AUTH_ISSUER}"
+      MCP_AUTH_JWKS_URL: "${MCP_AUTH_JWKS_URL}"
+      MCP_AUTH_AUDIENCE: "${MCP_AUTH_AUDIENCE}"
+      MCP_AUTH_REQUIRED_SCOPES: "${MCP_AUTH_REQUIRED_SCOPES}"
+    volumes:
+      # Persist artist/inspiration/seen data across restarts.
+      - tattoo-data:/app/data
+    networks:
+      - internal
+    restart: unless-stopped
+
+  ngrok:
+    image: ngrok/ngrok:latest
+    # Plain TLS ingress only — no ngrok OAuth action; auth lives in the server.
+    # To use a stable domain, append: --domain=${NGROK_DOMAIN}
+    command: ["http", "http://server:8000", "--log=stdout"]
+    environment:
+      NGROK_AUTHTOKEN: "${NGROK_AUTHTOKEN}"
+    ports:
+      # ngrok inspector — retrieve the public URL from http://localhost:4040
+      - "4040:4040"
+    networks:
+      - internal
+    depends_on:
+      - server
+    restart: unless-stopped
+
+networks:
+  internal:
+    driver: bridge
+
+volumes:
+  tattoo-data:
