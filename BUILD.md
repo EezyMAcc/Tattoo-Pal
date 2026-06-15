@@ -39,16 +39,25 @@ entirely in `server/`, deployment files, and docs.
 
 ## How to run it
 
-Run the loop **inside the `tattoo-feed-dev` container** (root `Dockerfile` /
-`./run-loop.sh`), one chunk at a time, same discipline as phase 1. Launch prompt:
+The loop runs **inside the `tattoo-feed-dev` container** (root `Dockerfile`) and
+is driven by the **shell** — `build-loop.sh` — one chunk per fresh `claude`
+process. This is deliberate: each chunk must start from a clean context window so
+it re-reads `CLAUDE.md` / `PLAN.md` / `RESEARCH.md` and re-verifies external
+contracts from cold. An in-session `/loop` keeps a single growing context across
+all chunks and does **not** give that fresh boundary — do not use it for this.
 
-> Build phase 2 by following the root `PLAN.md` exactly, governed by the root
-> `CLAUDE.md`. The `build_artifacts/Phase1_*.md` docs are superseded phase-1
-> artifacts — do not follow them. Work ONE chunk at a time (0 → 5) inside the
-> container. Run the full gate after each; commit on green to `feat/remote-app`;
-> stop and write `BLOCKERS.md` after 3 failed honest attempts on a chunk. Verify
-> external API shapes against the root `RESEARCH.md` and its live links before
-> implementing — never from memory.
+Set up the Claude token, then launch unattended (see
+`build_artifacts/Phase 2/PROMPTS.md` for the token steps):
+
+```bash
+./run-loop.sh --build          # runs build-loop.sh in the container, headless
+```
+
+`build-loop.sh` detects the next chunk from git (`phase2-base..HEAD`), runs one
+`claude -p` per chunk with a single-chunk prompt, and stops when chunk 5 is
+committed or a `BLOCKERS.md` appears. Each chunk's transcript is saved to
+`build_artifacts/*.txt` (gitignored). State passes between chunks only through
+git commits — never conversation memory.
 
 The build container needs **no** Instagram / IdP / ngrok secrets — the tests are
 hermetic. Chunk 4 *writes* `Dockerfile.server` + `docker-compose.yml` but does

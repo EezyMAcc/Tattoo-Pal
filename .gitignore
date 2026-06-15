@@ -2,8 +2,13 @@
 .env
 data/
 
-# Local conversation exports / build logs (not source)
+# Local conversation exports / build logs (not source) — at the top level and in
+# any subfolder (e.g. build_artifacts/Phase 2/<transcript>.txt, loop chunk logs)
 build_artifacts/*.txt
+build_artifacts/**/*.txt
+
+# Local working notes / scratchpads (not source)
+scratchpads/
 
 # Python
 __pycache__/

@@ -105,6 +105,14 @@ Phase 1 shipped 100% green at 100% coverage. That is the floor you protect.
 
 ## 3. The loop
 
+The loop is driven by the **shell** (`build-loop.sh`), not by an in-session
+`/loop`: each chunk runs as its own fresh `claude -p` **process**, so it starts
+from a clean context window and re-reads this file, `PLAN.md` and `RESEARCH.md`
+from cold. One process builds exactly one chunk and exits; the shell then starts
+the next. State crosses the chunk boundary only through git commits and
+`BLOCKERS.md` — never through conversation memory. (See `build-loop.sh`; launch
+with `./run-loop.sh --build`.)
+
 Work one chunk at a time, in order. For each chunk:
 
 1. Read its goal, deliverables, and success gate in `PLAN.md`.

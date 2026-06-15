@@ -1,9 +1,13 @@
 #!/usr/bin/env bash
 #
-# Launch the tattoo-feed dev container interactively.
+# Launch the tattoo-feed dev container.
 #
-# This does NOT start the /loop build. It just drops you into a shell
-# inside the container, with this project folder mounted at /workspace.
+#   ./run-loop.sh           Drop into an interactive shell in the container,
+#                           with this project folder mounted at /workspace.
+#   ./run-loop.sh --build   Run the phase-2 build UNATTENDED: execute
+#                           ./build-loop.sh inside the container, which drives
+#                           the build ONE chunk per fresh `claude` process
+#                           (fresh context per chunk). See build-loop.sh.
 #
 # Isolation boundary (read this):
 #   -v "$PWD":/workspace mounts ONLY the current folder into the container.
@@ -14,6 +18,10 @@
 #   a copy. Everything outside /workspace inside the container is the
 #   image's own throwaway filesystem and is discarded when the container
 #   exits (--rm).
+#
+#   The one other thing passed in from the host is the CLAUDE_CODE_OAUTH_TOKEN
+#   environment variable (your Claude Code login) — see below. No host files
+#   besides this folder are shared.
 
 set -euo pipefail
 
@@ -21,10 +29,54 @@ set -euo pipefail
 # the script is invoked from.
 PROJECT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
-docker run \
-    --rm \
-    -it \
-    -v "$PROJECT_DIR":/workspace \
-    -w /workspace \
-    tattoo-feed-dev \
-    bash
+# Claude Code auth: forward CLAUDE_CODE_OAUTH_TOKEN from the host so `claude` is
+# logged in inside the (ephemeral, --rm) container without an interactive browser
+# login — which does not work well from a container and would not persist anyway.
+# Generate it ONCE on the host:  claude setup-token
+# then:                          export CLAUDE_CODE_OAUTH_TOKEN=<token>
+if [ -z "${CLAUDE_CODE_OAUTH_TOKEN:-}" ]; then
+    echo "warning: CLAUDE_CODE_OAUTH_TOKEN is not set on the host." >&2
+    echo "         'claude' will fall back to an interactive login inside the" >&2
+    echo "         container (fiddly, and wiped on exit). To avoid that, run" >&2
+    echo "         'claude setup-token' on the host and export the token first." >&2
+fi
+
+# Mode selection: default is an interactive shell; --build runs the loop headless.
+MODE="${1:-shell}"
+
+# -e CLAUDE_CODE_OAUTH_TOKEN passes the variable through by name (its value comes
+# from the host env); if unset, docker simply omits it.
+case "$MODE" in
+    --build)
+        # Non-interactive (no -t): execute the per-chunk loop and exit when it
+        # finishes (all chunks committed) or stops (a BLOCKERS.md). Each chunk's
+        # transcript is saved to build_artifacts/*.txt (gitignored). For one
+        # combined log, tee to a path OUTSIDE this folder so it does not dirty
+        # the worktree the loop builds in:
+        #     ./run-loop.sh --build 2>&1 | tee ~/phase2-build.log
+        docker run \
+            --rm \
+            -i \
+            -e CLAUDE_CODE_OAUTH_TOKEN \
+            -v "$PROJECT_DIR":/workspace \
+            -w /workspace \
+            tattoo-feed-dev \
+            bash -lc './build-loop.sh'
+        ;;
+    shell)
+        docker run \
+            --rm \
+            -it \
+            -e CLAUDE_CODE_OAUTH_TOKEN \
+            -v "$PROJECT_DIR":/workspace \
+            -w /workspace \
+            tattoo-feed-dev \
+            bash
+        ;;
+    *)
+        echo "usage: $0 [--build]" >&2
+        echo "  (no args)  interactive shell in the dev container" >&2
+        echo "  --build    run the phase-2 build loop unattended" >&2
+        exit 2
+        ;;
+esac
