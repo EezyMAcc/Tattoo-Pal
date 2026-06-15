@@ -11,6 +11,7 @@ from __future__ import annotations
 import os
 from dataclasses import dataclass
 from pathlib import Path
+from typing import Literal
 
 import httpx
 from mcp.server.fastmcp import FastMCP, Image
@@ -34,6 +35,33 @@ from tattoo_feed.services.preferences import PreferenceService
 DATA_DIR_ENV = "TATTOO_FEED_DATA_DIR"
 DEFAULT_DATA_DIR = "data"
 HTTP_TIMEOUT_SECONDS = 30.0
+_DEFAULT_HOST = "0.0.0.0"  # noqa: S104  in-container bind-all default
+_DEFAULT_PORT = 8000
+
+
+@dataclass
+class TransportConfig:
+    """Transport mode and network settings derived from the environment."""
+
+    transport: Literal["stdio", "streamable-http"]
+    host: str
+    port: int
+
+
+def resolve_transport() -> TransportConfig:
+    """Map environment variables to an explicit transport configuration.
+
+    Pure function: reads env, makes no network calls, touches no global state.
+    Extracted from ``main()`` so the transport decision is unit-testable.
+    """
+    if os.environ.get("MCP_TRANSPORT") == "http":
+        return TransportConfig(
+            transport="streamable-http",
+            host=os.environ.get("MCP_HOST", _DEFAULT_HOST),
+            port=int(os.environ.get("MCP_PORT", str(_DEFAULT_PORT))),
+        )
+    return TransportConfig(transport="stdio", host=_DEFAULT_HOST, port=_DEFAULT_PORT)
+
 
 mcp = FastMCP(
     "tattoo-feed",
@@ -204,10 +232,10 @@ def get_preference_summary() -> list[Preference]:
 
 def main() -> None:  # pragma: no cover
     """Run the MCP server over stdio or HTTP (set MCP_TRANSPORT=http to use HTTP)."""
-    if os.environ.get("MCP_TRANSPORT") == "http":
-        # host/port live on settings; run() only takes transport + mount_path.
-        mcp.settings.host = "0.0.0.0"  # noqa: S104  bind all interfaces (in-container)
-        mcp.settings.port = int(os.environ.get("MCP_PORT", "8000"))
+    t = resolve_transport()
+    if t.transport == "streamable-http":
+        mcp.settings.host = t.host
+        mcp.settings.port = t.port
         mcp.run(transport="streamable-http")
     else:
         mcp.run()
