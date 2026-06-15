@@ -13,6 +13,7 @@ from pathlib import Path
 import httpx
 import pytest
 import respx
+from mcp.types import CallToolResult
 
 from tattoo_feed.models import Artist, InspirationItem, MediaType, Post, Preference
 from tattoo_feed.server import app
@@ -147,19 +148,36 @@ def test_next_inspiration_returns_image_then_metadata() -> None:
     respx.get("https://cdn/p9.jpg").mock(
         return_value=httpx.Response(200, content=FIXTURE.read_bytes())
     )
-    blocks = app.next_inspiration()
-    assert blocks[0].type == "image"
-    assert blocks[0].mimeType == "image/jpeg"
-    assert blocks[1].type == "text"
-    assert "@alice" in blocks[1].text
-    assert "https://ig/p/p9" in blocks[1].text
+    result = app.next_inspiration()
+    # Result is a widget-backed CallToolResult (Chunk 3 contract).
+    assert isinstance(result, CallToolResult)
+    meta = result.meta
+    assert meta is not None
+    assert meta["openai/outputTemplate"] == "ui://widget/inspiration.html"
+    assert meta["ui"]["resourceUri"] == "ui://widget/inspiration.html"
+    assert meta["imageDataUrl"].startswith("data:image/jpeg;base64,")
+    assert meta["handle"] == "alice"
+    assert meta["permalink"] == "https://ig/p/p9"
+    # structuredContent carries text fields for the model — no base64.
+    sc = result.structuredContent
+    assert sc is not None
+    assert sc["handle"] == "alice"
+    assert sc["permalink"] == "https://ig/p/p9"
+    assert "base64" not in str(sc)
+    # content provides a text block for the model to narrate.
+    assert any(c.type == "text" and "@alice" in c.text for c in result.content)
 
 
 def test_next_inspiration_when_nothing_new() -> None:
+    from mcp.types import TextContent as _TextContent
+
     _install(None)
-    blocks = app.next_inspiration()
-    assert blocks[0].type == "text"
-    assert "reset_seen" in blocks[0].text
+    result = app.next_inspiration()
+    assert isinstance(result, CallToolResult)
+    assert len(result.content) == 1
+    block = result.content[0]
+    assert isinstance(block, _TextContent)
+    assert "reset_seen" in block.text
 
 
 def test_save_to_inspiration_passes_notes() -> None:

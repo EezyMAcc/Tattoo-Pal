@@ -1,9 +1,9 @@
-"""Structural tests for the rendered inspiration image block (Chunk 8).
+"""Structural tests for the rendered inspiration widget (Chunk 3).
 
-These verify the *structure* of what next_inspiration returns — valid base64,
-correct MIME type, non-zero bytes, and a long edge within the pinned 640px cap.
-They cannot verify that the image *visually renders* in a client; that is the
-human eyeball check described in REVIEW.md.
+These verify the *structure* of what next_inspiration returns — a data URL in
+_meta that encodes a valid JPEG with long edge ≤ 640px, and a widget _meta
+linking to the ui:// resource URI. They cannot verify that the image *visually
+renders* in ChatGPT; that is the human eyeball check described in REVIEW.md.
 """
 
 from __future__ import annotations
@@ -15,6 +15,7 @@ from pathlib import Path
 
 import httpx
 import respx
+from mcp.types import CallToolResult
 from PIL import Image as PILImage
 
 from tattoo_feed.models import MediaType, Post
@@ -33,7 +34,7 @@ class _FakeInspiration:
 
 
 @respx.mock
-def test_next_inspiration_image_block_is_structurally_valid() -> None:
+def test_next_inspiration_widget_image_is_structurally_valid() -> None:
     post = Post(
         id="p1",
         artist_handle="alice",
@@ -53,17 +54,23 @@ def test_next_inspiration_image_block_is_structurally_valid() -> None:
         return_value=httpx.Response(200, content=FIXTURE.read_bytes())
     )
     try:
-        blocks = app.next_inspiration()
+        result = app.next_inspiration()
     finally:
         app._services = None
 
-    image = blocks[0]
-    assert image.type == "image"
-    assert image.mimeType == "image/jpeg"
+    assert isinstance(result, CallToolResult)
+    meta = result.meta
+    assert meta is not None
+    # Widget link is set correctly.
+    assert meta["openai/outputTemplate"] == "ui://widget/inspiration.html"
 
-    raw = base64.b64decode(image.data, validate=True)  # valid base64
+    # Image is in _meta as a data URL (not in structuredContent — keeps base64
+    # out of the model's token stream, per RESEARCH.md §1.4).
+    data_url: str = meta["imageDataUrl"]
+    assert data_url.startswith("data:image/jpeg;base64,")  # MIME type embedded
+    b64_part = data_url.split(",", 1)[1]
+    raw = base64.b64decode(b64_part, validate=True)  # valid base64
     assert len(raw) > 0  # non-zero bytes
-
     decoded = PILImage.open(io.BytesIO(raw))
     assert decoded.format == "JPEG"  # correct format
     assert max(decoded.size) <= 640  # long edge within the pinned cap

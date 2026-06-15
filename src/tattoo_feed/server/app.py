@@ -8,6 +8,7 @@ stdio — needs no credentials and makes no network calls.
 
 from __future__ import annotations
 
+import base64
 import os
 from dataclasses import dataclass
 from pathlib import Path
@@ -15,8 +16,8 @@ from typing import Literal
 
 import httpx
 from mcp.server.auth.settings import AuthSettings
-from mcp.server.fastmcp import FastMCP, Image
-from mcp.types import ImageContent, TextContent
+from mcp.server.fastmcp import FastMCP
+from mcp.types import CallToolResult, TextContent
 from pydantic import AnyHttpUrl
 
 from tattoo_feed.config import load_config
@@ -75,6 +76,15 @@ mcp = FastMCP(
         "remember the user's taste."
     ),
 )
+
+_WIDGET_URI = "ui://widget/inspiration.html"
+_WIDGET_PATH = Path(__file__).parent / "widgets" / "inspiration.html"
+
+
+@mcp.resource(_WIDGET_URI, mime_type="text/html;profile=mcp-app")
+def _widget_inspiration() -> str:
+    """ChatGPT Apps SDK widget that renders the next_inspiration preview image."""
+    return _WIDGET_PATH.read_text(encoding="utf-8")
 
 
 @dataclass
@@ -167,25 +177,48 @@ def get_feed(limit_per_artist: int = 10) -> list[Post]:
 
 
 @mcp.tool()
-def next_inspiration() -> list[ImageContent | TextContent]:
+def next_inspiration() -> CallToolResult:
     """Show one not-yet-seen post for inspiration, then mark it seen.
 
-    Returns a rendered preview image (downscaled, EXIF-stripped) alongside the
-    artist handle and permalink. Calling repeatedly walks through unseen posts;
-    use reset_seen to start over.
+    Returns a ChatGPT Apps SDK widget containing the downscaled preview image,
+    artist handle, caption, and permalink. The model receives concise text to
+    narrate; the image is delivered via the widget so it renders in ChatGPT.
+    Calling repeatedly walks through unseen posts; use reset_seen to start over.
     """
     services = _get_services()
     post = services.inspiration.next_inspiration()
     if post is None:
-        return [
-            TextContent(
-                type="text",
-                text="No new inspiration right now — call reset_seen to start over.",
-            )
-        ]
+        return CallToolResult(
+            content=[
+                TextContent(
+                    type="text",
+                    text=(
+                        "No new inspiration right now — call reset_seen to start over."
+                    ),
+                )
+            ],
+        )
     preview = fetch_preview(post.image_url, services.http)
-    image = Image(data=preview, format="jpeg").to_image_content()
-    return [image, TextContent(type="text", text=_format_post(post))]
+    # Base64-encode the preview and embed as a data URL in _meta so the host
+    # forwards the image to the widget iframe without exposing it to the model.
+    b64 = base64.b64encode(preview).decode()
+    data_url = f"data:image/jpeg;base64,{b64}"
+    return CallToolResult(
+        content=[TextContent(type="text", text=_format_post(post))],
+        structuredContent={
+            "handle": post.artist_handle,
+            "permalink": post.permalink,
+            "caption": post.caption or "",
+        },
+        _meta={
+            "openai/outputTemplate": _WIDGET_URI,
+            "ui": {"resourceUri": _WIDGET_URI},
+            "imageDataUrl": data_url,
+            "handle": post.artist_handle,
+            "caption": post.caption or "",
+            "permalink": post.permalink,
+        },
+    )
 
 
 @mcp.tool()

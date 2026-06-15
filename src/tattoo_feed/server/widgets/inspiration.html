@@ -1,0 +1,47 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>Tattoo Inspiration</title>
+  <style>
+    body { margin: 0; font-family: sans-serif; padding: 12px; }
+    img { max-width: 100%; border-radius: 4px; display: block; }
+    .handle { font-weight: bold; margin-top: 8px; }
+    .caption { color: #555; margin: 4px 0; font-size: 0.9em; }
+    a { color: #1a73e8; text-decoration: none; font-size: 0.85em; }
+    a:empty { display: none; }
+  </style>
+</head>
+<body>
+  <img id="preview" alt="Tattoo preview">
+  <div class="handle" id="handle"></div>
+  <div class="caption" id="caption"></div>
+  <a id="permalink" target="_blank"></a>
+  <script>
+    function render(meta) {
+      if (!meta) return;
+      document.getElementById("preview").src = meta.imageDataUrl || "";
+      document.getElementById("handle").textContent = meta.handle ? "@" + meta.handle : "";
+      document.getElementById("caption").textContent = meta.caption || "";
+      var link = document.getElementById("permalink");
+      link.href = meta.permalink || "#";
+      link.textContent = meta.permalink ? "View on Instagram →" : "";
+    }
+
+    // Primary path: host sets window.openai.toolOutput before the widget loads.
+    // The host forwards _meta so image data stays out of the model context
+    // (RESEARCH.md §1.4 — keeps base64 away from the LLM token stream).
+    if (window.openai && window.openai.toolOutput) {
+      render(window.openai.toolOutput._meta || window.openai.toolOutput);
+    }
+
+    // Fallback: listen for the host's tool-result postMessage notification.
+    window.addEventListener("message", function(event) {
+      var d = event.data;
+      if (!d || d.method !== "ui/notifications/tool-result") return;
+      var params = d.params || {};
+      render(params._meta || params.structuredContent);
+    });
+  </script>
+</body>
+</html>
