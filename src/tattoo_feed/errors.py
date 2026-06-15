@@ -53,3 +53,12 @@ class RepositoryError(TattooFeedError):
 
 class ImageProcessingError(TattooFeedError):
     """Downloading or downscaling a preview image failed."""
+
+
+class AuthError(TattooFeedError):
+    """Bearer token validation failed (signature, claim, or scope mismatch).
+
+    Raised by the server layer to signal an auth failure that cannot be
+    expressed as a ``None`` return from
+    :class:`~tattoo_feed.server.auth.IdpTokenVerifier`.
+    """

@@ -657,6 +657,7 @@ dependencies = [
     { name = "mcp" },
     { name = "pillow" },
     { name = "pydantic" },
+    { name = "pyjwt", extra = ["crypto"] },
 ]
 
 [package.dev-dependencies]
@@ -675,6 +676,7 @@ requires-dist = [
     { name = "mcp", specifier = "==1.27.2" },
     { name = "pillow", specifier = "==12.2.0" },
     { name = "pydantic", specifier = "==2.13.4" },
+    { name = "pyjwt", extras = ["crypto"], specifier = "==2.13.0" },
 ]
 
 [package.metadata.requires-dev]

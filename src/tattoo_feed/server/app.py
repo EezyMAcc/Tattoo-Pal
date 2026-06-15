@@ -14,8 +14,10 @@ from pathlib import Path
 from typing import Literal
 
 import httpx
+from mcp.server.auth.settings import AuthSettings
 from mcp.server.fastmcp import FastMCP, Image
 from mcp.types import ImageContent, TextContent
+from pydantic import AnyHttpUrl
 
 from tattoo_feed.config import load_config
 from tattoo_feed.graph.client import BusinessDiscoveryClient
@@ -27,6 +29,7 @@ from tattoo_feed.repositories.json_repo import (
     PreferenceRepository,
     SeenSetRepository,
 )
+from tattoo_feed.server.auth import IdpTokenVerifier, load_auth_config
 from tattoo_feed.services.artists import ArtistService
 from tattoo_feed.services.feed import FeedService
 from tattoo_feed.services.inspiration import InspirationService
@@ -231,9 +234,30 @@ def get_preference_summary() -> list[Preference]:
 
 
 def main() -> None:  # pragma: no cover
-    """Run the MCP server over stdio or HTTP (set MCP_TRANSPORT=http to use HTTP)."""
+    """Run the MCP server over stdio or HTTP (set MCP_TRANSPORT=http to use HTTP).
+
+    When ``MCP_TRANSPORT=http`` and the ``MCP_AUTH_*`` env vars are set, the
+    HTTP server is wrapped with OAuth 2.1 resource-server middleware: every
+    request must carry a valid bearer token, and the
+    ``/.well-known/oauth-protected-resource`` metadata document is served
+    automatically by the SDK.
+    """
     t = resolve_transport()
     if t.transport == "streamable-http":
+        auth_cfg = load_auth_config()
+        if auth_cfg is not None:
+            verifier = IdpTokenVerifier(
+                issuer=auth_cfg.issuer,
+                jwks_url=auth_cfg.jwks_url,
+                audience=auth_cfg.audience,
+                http_client=httpx.AsyncClient(),
+            )
+            mcp.settings.auth = AuthSettings(
+                issuer_url=AnyHttpUrl(auth_cfg.issuer),
+                resource_server_url=AnyHttpUrl(auth_cfg.audience),
+                required_scopes=auth_cfg.required_scopes or None,
+            )
+            mcp._token_verifier = verifier
         mcp.settings.host = t.host
         mcp.settings.port = t.port
         mcp.run(transport="streamable-http")
