@@ -47,9 +47,15 @@ image = Image(data=preview, format="jpeg").to_image_content()
 return [image, TextContent(type="text", text=_format_post(post))]
 ```
 
-This returns a native MCP `ImageContent` block. Claude understands it; **ChatGPT
-does not render it inline** (`RESEARCH.md` §1). Chunk 3 replaces this with an
-Apps SDK widget result. Its tests must move to the new contract (see below).
+This returns a native MCP `ImageContent` block. **ChatGPT does not render it
+inline** (`RESEARCH.md` §1). Chunk 3 replaces this with an Apps SDK widget
+result. Its tests must move to the new contract (see below).
+
+> **Correction (2026-06-16):** the original line here added "Claude understands
+> it" implying Claude renders the block inline. Manual testing later showed Claude
+> does **not** display image blocks to the user either (see `RESEARCH.md` §1
+> correction). It doesn't change Chunk 3 — the widget was the right call — but the
+> rationale is "no client shows the raw block to the user," not "only ChatGPT."
 
 **Tests that assert the OLD image contract (must be updated in Chunk 3, not
 weakened):**

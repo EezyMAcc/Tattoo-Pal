@@ -10,6 +10,16 @@ update this file and note it in `BLOCKERS.md`.**
 
 ## 1. ChatGPT image rendering — you need an Apps SDK widget, not an image block
 
+> **⚠️ Correction (2026-06-16, from manual testing — supersedes the original
+> claim below).** The original framing said Claude renders native MCP image
+> blocks inline while ChatGPT does not. **The Claude half is wrong.** Manual
+> testing showed Claude *receives* an image content block (the model can reason
+> about it) but **does not display it to the user in the conversation** — a
+> Claude client limitation. So a raw image block surfaces the picture to the user
+> in *neither* client. The Apps SDK widget rendered by ChatGPT is the only path
+> that shows the image inline, which is why the product targets ChatGPT. The
+> rest of this section (the widget contract) is unaffected and still correct.
+
 **The key finding that motivates this whole build:** ChatGPT does **not** render
 a native MCP image content block (`type: image`, base64, `mimeType`) inline in
 chat. Visual output goes through an **Apps SDK UI component** (an HTML/JS widget
@@ -17,8 +27,10 @@ rendered in a sandboxed iframe). A developer returning an image from an MCP tool
 result confirmed it did not render, while the same markdown rendered when ChatGPT
 itself produced it.
 
-> Claude *does* understand native MCP image blocks (that is why phase-1's
-> `to_image_content()` worked there). ChatGPT is different — hence the widget.
+> ~~Claude *does* understand native MCP image blocks (that is why phase-1's
+> `to_image_content()` worked there). ChatGPT is different — hence the widget.~~
+> **(Struck — see the correction above. Claude does not render the block to the
+> user either.)**
 
 Sources:
 - Apps SDK — build a custom UX: <https://developers.openai.com/apps-sdk/build/custom-ux>

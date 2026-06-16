@@ -8,10 +8,19 @@ You point it at the artists you follow, and from your chat client you can pull a
 merged feed, discover one post at a time, bookmark the ones you like, and record
 notes about your taste so a future session remembers them.
 
-**Phase 2 adds a remote, OAuth-protected mode** so the server can be connected
-to **ChatGPT** via a custom connector. `next_inspiration` now returns a ChatGPT
-Apps SDK **widget** that renders the preview image inline — native MCP image
-blocks are not rendered by ChatGPT, hence the widget.
+**Phase 2 makes this a remote, OAuth-protected ChatGPT app.** The product runs
+over an HTTP endpoint that ChatGPT connects to as a custom connector;
+`next_inspiration` returns a ChatGPT Apps SDK **widget** that renders the preview
+image inline.
+
+The widget exists because **no chat client we tested displays a raw MCP image
+content block to the user inline.** ChatGPT does not render image blocks at all;
+Claude *receives* the image and can reason about it, but **does not display it in
+the conversation** (a Claude client limitation, confirmed by manual testing). The
+Apps SDK widget rendered by ChatGPT is the only path that actually puts the image
+in front of you — which is why the product targets the ChatGPT connector over
+HTTP. (stdio remains, but only as a local dev/test transport — see
+[Running](#running).)
 
 ---
 
@@ -43,10 +52,15 @@ src/tattoo_feed/
 
 ### Transport modes
 
-| Mode | When | Who can connect |
+| Mode | Role | Who connects |
 |------|------|-----------------|
-| **stdio** (default) | Local use | Claude Desktop, any local MCP client |
-| **HTTP** (`MCP_TRANSPORT=http`) | Remote/container | ChatGPT, any remote MCP client |
+| **HTTP** (`MCP_TRANSPORT=http`) | **The product** — remote, OAuth-protected | ChatGPT (renders the widget inline), any remote MCP client |
+| **stdio** (code default) | Local development & testing only | local MCP clients; **does not render the inspiration image inline** |
+
+HTTP is how the app is actually run and used. stdio is retained as the
+credential-free local entrypoint for development and the hermetic test suite (it
+needs no tunnel or IdP), but it is not a product surface: a local client receives
+the `next_inspiration` text but not the rendered image.
 
 In HTTP mode the server acts as an **OAuth 2.1 resource server**: every request
 must carry a valid bearer token issued by your identity provider.  An
@@ -96,31 +110,11 @@ a Meta app, connect an Instagram Business/Creator account, and mint a
 
 ## Running
 
-### Locally (stdio — Claude Desktop, local clients)
+The product runs over HTTP and is used through ChatGPT — that's the path below.
+The stdio path after it is for local development and tests only and does **not**
+render the inspiration image inline.
 
-```bash
-uv run python -m tattoo_feed.server.app
-```
-
-The server speaks the MCP stdio protocol. For Claude Desktop, add to its config:
-
-```json
-{
-  "mcpServers": {
-    "tattoo-feed": {
-      "command": "uv",
-      "args": ["run", "python", "-m", "tattoo_feed.server.app"],
-      "cwd": "/absolute/path/to/tattoo-feed",
-      "env": {
-        "IG_ACCESS_TOKEN": "your-token",
-        "IG_USER_ID": "your-business-user-id"
-      }
-    }
-  }
-}
-```
-
-### Remote (HTTP + OAuth + ngrok — ChatGPT connector)
+### Remote (HTTP + OAuth + ngrok — ChatGPT connector) — the product
 
 The quickest path is Docker Compose, which starts the server and the ngrok
 tunnel together:
@@ -157,6 +151,36 @@ URL. Reserve a stable domain at <https://dashboard.ngrok.com/domains>, set
 `NGROK_DOMAIN` in `.env`, and add `--domain=${NGROK_DOMAIN}` to the ngrok
 command in `docker-compose.yml`.
 
+### Local development & testing (stdio)
+
+stdio is the credential-free local entrypoint — handy for exercising the tools
+without standing up a tunnel and an IdP, and the transport the hermetic test
+suite boots over. **It is not the product surface: a local stdio client receives
+the `next_inspiration` text but the image does not render inline** (see the note
+at the top of this README). Use ChatGPT over HTTP for the visual experience.
+
+```bash
+uv run python -m tattoo_feed.server.app
+```
+
+The server speaks the MCP stdio protocol. To wire it into a local MCP client, add:
+
+```json
+{
+  "mcpServers": {
+    "tattoo-feed": {
+      "command": "uv",
+      "args": ["run", "python", "-m", "tattoo_feed.server.app"],
+      "cwd": "/absolute/path/to/tattoo-feed",
+      "env": {
+        "IG_ACCESS_TOKEN": "your-token",
+        "IG_USER_ID": "your-business-user-id"
+      }
+    }
+  }
+}
+```
+
 ### In the dev container (gate / CI)
 
 A dev image (`Dockerfile`) bundles Python, `uv`, Node, and the toolchain:
@@ -176,7 +200,7 @@ docker build -t tattoo-feed-dev .
 | `add_artist(handle)` | Validate the handle is a reachable **professional** account, then track it. |
 | `remove_artist(handle)` | Stop tracking a handle. |
 | `get_feed(limit_per_artist=10)` | Merged, newest-first feed. Metadata + permalinks only (no images). |
-| `next_inspiration()` | One **not-yet-seen** post, marked seen. Returns an Apps SDK widget with the preview image in ChatGPT; a text fallback in other clients. |
+| `next_inspiration()` | One **not-yet-seen** post, marked seen. Returns an Apps SDK widget; the image renders inline **only in ChatGPT**. Other clients receive the text but not a rendered image. |
 | `save_to_inspiration(post_id, notes=None)` | Bookmark a post into the saved collection. |
 | `list_inspiration()` | The saved collection, in save order. |
 | `remove_from_inspiration(post_id)` | Remove a saved item. |
@@ -190,11 +214,14 @@ The tool returns three channels (per the Apps SDK spec):
 
 - **`structuredContent`** — handle, permalink, caption — what the model narrates.
   No base64.
-- **`content`** — plain-text fallback for non-ChatGPT clients.
+- **`content`** — plain text the model can narrate. In a non-ChatGPT client this
+  is *all* you see — the image is not rendered there (Claude receives the image
+  but does not display it inline; other clients show only this text).
 - **widget** — an HTML/JS component registered at `ui://widget/inspiration.html`
   (mimeType `text/html;profile=mcp-app`) that the ChatGPT host renders inline.
   The preview image travels as a data URL in `_meta` so it reaches the widget
-  without passing through the model's context window.
+  without passing through the model's context window. **This is the only channel
+  that renders the image to the user, and only ChatGPT honours it.**
 
 ---
 
@@ -251,6 +278,12 @@ The tool returns three channels (per the Apps SDK spec):
 - **IdP dependency.** The server relies on an external identity provider for
   token issuance. The IdP must be set up and configured before the ChatGPT
   connector will complete its OAuth login.
+- **Inline image rendering is ChatGPT-only.** The image renders inline only via
+  the Apps SDK widget in ChatGPT. No other tested client displays it: ChatGPT
+  does not render raw MCP image blocks, and Claude receives the image but does
+  not show it in the conversation (a Claude client limitation found in manual
+  testing). This — not just model preference — is why the product targets the
+  ChatGPT connector.
 - **Widget visual verification is manual.** The automated gate confirms the
   widget resource is registered and the `_meta` fields are present, but whether
   the image actually renders in ChatGPT's UI requires a human eyeball check (see

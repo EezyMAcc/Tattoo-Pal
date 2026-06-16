@@ -142,7 +142,7 @@ def test_get_feed() -> None:
 
 
 @respx.mock
-def test_next_inspiration_returns_image_then_metadata() -> None:
+def test_next_inspiration_returns_widget_result() -> None:
     services = _install(_post("p9"))
     services.http = httpx.Client()
     respx.get("https://cdn/p9.jpg").mock(
