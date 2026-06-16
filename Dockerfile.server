@@ -17,7 +17,7 @@ ENV PATH="/root/.local/bin:${PATH}"
 WORKDIR /app
 
 # Copy manifests first so the dependency layer is cached independently of source.
-COPY pyproject.toml uv.lock ./
+COPY pyproject.toml README.md uv.lock ./
 COPY src/ ./src/
 
 # Install production deps only — no mypy / ruff / pytest in the image.
