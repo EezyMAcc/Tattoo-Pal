@@ -1,0 +1,2085 @@
+ ▐▛███▜▌   Claude Code v2.1.177
+▝▜█████▛▘  Opus 4.8 · Claude API
+  ▘▘ ▝▝    /workspace
+
+
+❯ /model                                                                        
+  ⎿  Set model to Opus 4.8 and saved as your default for new sessions
+
+❯ /loop Build phase 2 of tattoo-feed by following `PLAN.md` exactly, governed   
+by                                                                              
+> `CLAUDE.md` (both at the repo root). Read both in full, plus `RESEARCH.md`,   
+> before starting. The docs under `build_artifacts/Phase1_*.md` are superseded  
+> phase-1 artifacts — do not follow them.                                       
+>                                                                               
+> Work ONE chunk at a time, in order (Chunk 0 → Chunk 5). For each chunk:       
+> (1) re-verify any external API shape it touches against `RESEARCH.md` and its 
+> live links before writing code — never from memory; (2) implement only what   
+> that chunk specifies, pulling nothing forward; (3) run the full gate from     
+> `CLAUDE.md` §4. When the gate is green, make one Conventional Commit for the  
+> chunk on the `feat/remote-app` branch, then move to the next chunk.           
+>                                                                               
+> Hard rules (`CLAUDE.md` §1): never weaken tests or tooling config to pass a   
+> gate — a chunk may UPDATE a test only when it *explicitly* changes a          
+contract,                                                                       
+> and the replacement assertion must be at least as strict; never make a live   
+> network call in the test path (all HTTP mocked with `respx` or local          
+fixtures;                                                                       
+> `RUN_LIVE` stays off); never commit secrets; never touch `main`. If a chunk's 
+> gate cannot pass after 3 honest attempts, STOP, write `BLOCKERS.md`, and      
+leave                                                                           
+> the repo on the last green commit.                                            
+>                                                                               
+> After the final chunk (Chunk 5), STOP. Fill in only `REVIEW.md`'s two         
+bracketed                                                                       
+> sections (chunks completed; anything flagged for me). Do not declare the      
+build                                                                           
+> verified — image rendering in ChatGPT and the live OAuth login need my eyes.  
+
+● I'll start by reading the governing docs in full before touching any code.
+
+  Read 3 files (ctrl+o to expand)
+
+● Now let me explore the current source structure and confirm the baseline
+  state.
+
+  Listed 1 directory, ran 1 shell command (ctrl+o to expand)
+
+● Let me understand the inherited working-tree state — there are uncommitted
+  changes I didn't make.
+
+  Ran 1 shell command (ctrl+o to expand)
+
+● Auto mode lets Claude handle permission prompts automatically — Claude
+  checks each tool call for risky actions and prompt injection before 
+  executing. Actions Claude identifies as safe are executed, while 
+  actions Claude identifies as risky are blocked and Claude may try a 
+  different approach. Ideal for long-running tasks. Sessions are 
+  slightly more expensive. Claude can make mistakes that allow harmful 
+  commands to run, it's recommended to only use in isolated 
+  environments. Shift+Tab to change mode.
+
+❯ /loop Build phase 2 of tattoo-feed by following `PLAN.md` exactly, governed   
+by                                                                              
+> `CLAUDE.md` (both at the repo root). Read both in full, plus `RESEARCH.md`,   
+> before starting. The docs under `build_artifacts/Phase1_*.md` are superseded  
+> phase-1 artifacts — do not follow them.                                       
+>                                                                               
+> Work ONE chunk at a time, in order (Chunk 0 → Chunk 5). For each chunk:       
+> (1) re-verify any external API shape it touches against `RESEARCH.md` and its 
+> live links before writing code — never from memory; (2) implement only what   
+> that chunk specifies, pulling nothing forward; (3) run the full gate from     
+> `CLAUDE.md` §4. When the gate is green, make one Conventional Commit for the  
+> chunk on the `feat/remote-app` branch, then move to the next chunk.           
+>                                                                               
+> Hard rules (`CLAUDE.md` §1): never weaken tests or tooling config to pass a   
+> gate — a chunk may UPDATE a test only when it *explicitly* changes a          
+contract,                                                                       
+> and the replacement assertion must be at least as strict; never make a live   
+> network call in the test path (all HTTP mocked with `respx` or local          
+fixtures;                                                                       
+> `RUN_LIVE` stays off); never commit secrets; never touch `main`. If a chunk's 
+> gate cannot pass after 3 honest attempts, STOP, write `BLOCKERS.md`, and      
+leave                                                                           
+> the repo on the last green commit.                                            
+>                                                                               
+> After the final chunk (Chunk 5), STOP. Fill in only `REVIEW.md`'s two         
+bracketed                                                                       
+> sections (chunks completed; anything flagged for me). Do not declare the      
+build                                                                           
+> verified — image rendering in ChatGPT and the live OAuth login need my eyes.  
+
+● The user re-launched the loop. I'll proceed with the autonomous build in
+  dynamic mode. First, a note on what I found: the working tree has inherited 
+  uncommitted changes I did not make (.gitignore, run-loop.sh modified;
+  build_artifacts/Phase1_*.md shown as deleted because they were moved into a
+  new build_artifacts/Phase 1/ dir).
+
+  To respect CLAUDE.md's "do not move/edit/delete the Phase1 docs" rule, I will
+  leave that inherited state entirely alone and make only surgical git add 
+  <specific-files> commits per chunk — never git add -A. That keeps the noise
+  out of my commits without me touching the Phase1 artifacts.
+
+  Let me confirm the green baseline (Chunk 0's first requirement) and read the
+  focal source file.
+
+  Read 1 file, ran 1 shell command (ctrl+o to expand)
+
+● Baseline is green: 102 passed, 100% coverage, ruff/mypy clean. Now Chunk 0 — 
+  verify the SDK actually exposes the auth + widget APIs this plan assumes. Let
+  me inspect the installed mcp package.
+
+  Ran 1 shell command (ctrl+o to expand)
+
+● Auth API confirmed present. Now verify the version pin, the automatic
+  401/metadata behavior, and the widget/_meta capabilities.
+
+  Ran 1 shell command (ctrl+o to expand)
+
+● All present in mcp==1.27.2 — no bump needed. Let me confirm the SDK
+  auto-serves the RFC 9728 metadata + 401 challenge when auth is configured
+  (this determines Chunk 2's approach).
+
+  Ran 1 shell command (ctrl+o to expand)
+
+● The SDK auto-mounts /.well-known/oauth-protected-resource and protects /mcp
+  when auth is configured — so Chunk 2 won't need to hand-roll metadata/401. All
+  Chunk 0 verifications pass on mcp==1.27.2; no bump needed. Let me write
+  RECONCILIATION.md.
+
+● Write(RECONCILIATION.md)
+  ⎿  Wrote 57 lines to RECONCILIATION.md
+       1 # RECONCILIATION.md — Chunk 0 SDK ground-truth (verified 2026-06
+       2 
+       3 Capability findings for `feat/remote-app`, so later chunks don't
+       4 Verified by importing the **installed** `mcp` package (not from 
+         docs/memory) and
+       6 
+       7 ## Versions (no bump required)
+       9 - `mcp == 1.27.2` (pinned) exposes the full resource-server auth
+          API **and** the
+         dencies" bump of
+     … +72 lines (ctrl+o to expand)
+
+● Chunk 0 deliverables done (branch exists, SDK verified, RECONCILIATION.md
+  written, no source change so gate stays green). Committing surgically — only
+  my new file, leaving inherited working-tree noise untouched.
+
+  Ran 1 shell command (ctrl+o to expand)
+
+● Need to set a git identity for this repo. Let me check what prior commits used
+  and configure to match.
+
+  Committed 0, ran 1 shell command (ctrl+o to expand)
+
+● Chunk 0 committed. Now Chunk 1 — HTTP transport, formalised. Let me read the
+  existing boot test so I preserve its contract.
+
+  Read 1 file (ctrl+o to expand)
+● Now let me check the ruff config to handle the 0.0.0.0 bind lint correctly.
+
+  Read 1 file (ctrl+o to expand)
+
+● S (bandit) isn't in the ruff select, so the 0.0.0.0 literal needs no noqa. Now
+  let me add the testable transport-selection helper and rewire main().
+
+● Update(src/tattoo_feed/server/app.py)
+  ⎿  Added 2 lines
+       9  from __future__ import annotations
+      10  
+      11  import os
+      12 +from collections.abc import Mapping                            
+      13  from dataclasses import dataclass
+      14  from pathlib import Path
+      15 +from typing import Literal                                     
+      16  
+      17  import httpx
+      18  from mcp.server.fastmcp import FastMCP, Image
+
+● Update(src/tattoo_feed/server/app.py)
+  ⎿  Added 45 lines
+      37  DEFAULT_DATA_DIR = "data"
+      38  HTTP_TIMEOUT_SECONDS = 30.0
+      39  
+      40 +TRANSPORT_ENV = "MCP_TRANSPORT"                                
+      41 +HOST_ENV = "MCP_HOST"                                          
+      42 +PORT_ENV = "MCP_PORT"                                          
+      43 +DEFAULT_HOST = "0.0.0.0"                                       
+      44 +DEFAULT_PORT = 8000                                            
+      45 +                                                               
+      46 +                                                               
+      47 +@dataclass(frozen=True)                                        
+      48 +class TransportSelection:                                      
+      49 +    """A resolved transport choice derived purely from the envi
+         +ronment.                                                       
+      50 +                                                               
+      51 +    Attributes:                                                
+      52 +        transport: The MCP transport to run — ``"stdio"`` or   
+      53 +            ``"streamable-http"``.                             
+      54 +        host: Interface to bind for HTTP (ignored for stdio).  
+      55 +        port: TCP port to bind for HTTP (ignored for stdio).   
+      56 +    """                                                        
+      57 +                                                               
+      58 +    transport: Literal["stdio", "streamable-http"]             
+      59 +    host: str                                                  
+      60 +    port: int                                                  
+      61 +                                                               
+      62 +                                                               
+      63 +def select_transport(env: Mapping[str, str]) -> TransportSelect
+         +ion:                                                           
+      64 +    """Map the process environment to a transport choice (pure;
+         + no I/O).                                                      
+      65 +                                                               
+      66 +    ``MCP_TRANSPORT=http`` selects streamable-http bound to ``M
+         +CP_HOST`` /                                                    
+      67 +    ``MCP_PORT`` (defaulting to ``0.0.0.0`` / ``8000``); any ot
+         +her value — or an                                              
+      68 +    unset variable — selects stdio. Host/port are still resolve
+         +d for stdio but                                                
+      69 +    are unused there.                                          
+      70 +                                                               
+      71 +    Args:                                                      
+      72 +        env: A read-only view of environment variables (e.g. ``
+         +os.environ``).                                                 
+      73 +                                                               
+      74 +    Returns:                                                   
+      75 +        The resolved :class:`TransportSelection`.              
+      76 +    """                                                        
+      77 +    host = env.get(HOST_ENV, DEFAULT_HOST)                     
+      78 +    port = int(env.get(PORT_ENV, str(DEFAULT_PORT)))           
+      79 +    if env.get(TRANSPORT_ENV) == "http":                       
+      80 +        return TransportSelection(                             
+      81 +            transport="streamable-http", host=host, port=port  
+      82 +        )                                                      
+      83 +    return TransportSelection(transport="stdio", host=host, por
+         +t=port)                                                        
+      84 +                                                               
+      85  mcp = FastMCP(
+      86      "tattoo-feed",
+      87      instructions=(
+
+● Update(src/tattoo_feed/server/app.py)
+  ⎿  Added 4 lines, removed 3 lines
+      251  
+      252  def main() -> None:  # pragma: no cover
+      253      """Run the MCP server over stdio or HTTP (set MCP_TRANSPOR
+           T=http to use HTTP)."""
+      254 -    if os.environ.get("MCP_TRANSPORT") == "http":             
+      254 +    selection = select_transport(os.environ)                  
+      255 +    if selection.transport == "streamable-http":              
+      256          # host/port live on settings; run() only takes transpo
+           rt + mount_path.
+      256 -        mcp.settings.host = "0.0.0.0"  # noqa: S104  bind all 
+          -interfaces (in-container)                                     
+      257 -        mcp.settings.port = int(os.environ.get("MCP_PORT", "80
+          -00"))                                                         
+      257 +        mcp.settings.host = selection.host                    
+      258 +        mcp.settings.port = selection.port                    
+      259          mcp.run(transport="streamable-http")
+      260      else:
+      261          mcp.run()
+
+● Now the hermetic test for the transport-selection helper:
+
+● Write(tests/test_transport_selection.py)
+  ⎿  Wrote 52 lines to tests/test_transport_selection.py
+       1 """Unit tests for the pure transport-selection helper (Chunk 1).
+       2 
+       3 These cover the env -> transport decision without booting a serv
+       4 HTTP/stdio choice fully tested while ``main()`` stays a thin pra
+         gma-no-cover
+       5 entrypoint.
+       6 """
+       7 
+       9 
+      10 from tattoo_feed.server.app import (
+     … +48 lines (ctrl+o to expand)
+
+  Ran 1 shell command (ctrl+o to expand)
+
+● Formatting needs a fix (my line-wrapping). Let me apply ruff format and
+  re-check.
+
+  Ran 1 shell command (ctrl+o to expand)
+
+● Chunk 1 gate green (107 passed, 100% coverage, all clean). Committing
+  surgically.
+
+  Committed 1 (ctrl+o to expand)
+
+● Now Chunk 2 — OAuth 2.1 resource-server protection, the meatiest chunk. Let me
+  re-verify the SDK's auth internals (how verify_token, required_scopes, the
+  401 challenge, and 403 insufficient-scope actually interact) before writing
+  code.
+
+  Ran 2 shell commands (ctrl+o to expand)
+
+● The SDK middleware handles scope enforcement (403 insufficient_scope) and the
+  401 challenge — so my verify_token populates AccessToken.scopes and the SDK
+  enforces them. Let me confirm how FastMCP wires resource_metadata_url into the
+  401 and what the metadata route returns.
+
+  Ran 1 shell command (ctrl+o to expand)
+
+● Let me see how FastMCP assembles the app with token_verifier + auth
+  (resource-server mode), to confirm the 401 carries resource_metadata= and
+  which .well-known path is used.
+
+  Ran 1 shell command (ctrl+o to expand)
+
+● Let me read the exact streamable_http_app auth block to confirm
+  authorization_servers and the metadata route content.
+
+  Ran 2 shell commands (ctrl+o to expand)
+
+● Wiring fully confirmed. Now let me read the current config.py and errors.py to
+  extend them for auth config and error types.
+
+  Read 2 files (ctrl+o to expand)
+
+● PyJWT approach: I'll fetch JWKS via the injected httpx client (so respx can
+  mock it) rather than PyJWT's network-fetching PyJWKClient. Let me confirm
+  PyJWT is installed and check the existing .env.example for naming conventions.
+
+  Ran 1 shell command (ctrl+o to expand)
+● All wiring confirmed. Let me verify AccessToken field types and PyJWT decode
+  behavior precisely, then write the code.
+
+  Ran 1 shell command (ctrl+o to expand)
+
+● Now I'll write all Chunk 2 code. Starting with the typed errors and config.
+
+● Update(src/tattoo_feed/errors.py)
+  ⎿  Added 13 lines
+      47          self.retry_after_seconds = retry_after_seconds
+      48  
+      49  
+      50 +class AuthError(TattooFeedError):                              
+      51 +    """Base class for OAuth resource-server authentication fail
+         +ures."""                                                       
+      52 +                                                               
+      53 +                                                               
+      54 +class AuthConfigError(AuthError):                              
+      55 +    """The OAuth resource-server configuration is missing or in
+         +valid.                                                         
+      56 +                                                               
+      57 +    Raised when the server is asked to run in an authenticated 
+         +mode but the                                                   
+      58 +    identity-provider settings (issuer, JWKS URL, audience) are
+         + not all present                                               
+      59 +    in the environment.                                        
+      60 +    """                                                        
+      61 +                                                               
+      62 +                                                               
+      63  class RepositoryError(TattooFeedError):
+      64      """A persistence operation failed (read, write, or corrupt 
+          store)."""
+      65  
+
+● Update(src/tattoo_feed/config.py)
+  ⎿  Added 6 lines, removed 1 line
+      10  import os
+      11  from dataclasses import dataclass
+      12  
+      13 -from tattoo_feed.errors import TattooFeedError                 
+      13 +from tattoo_feed.errors import AuthConfigError, TattooFeedError
+      14  
+      15  ACCESS_TOKEN_ENV = "IG_ACCESS_TOKEN"
+      16  USER_ID_ENV = "IG_USER_ID"
+      17  
+      18 +ISSUER_ENV = "MCP_OAUTH_ISSUER"                                
+      19 +JWKS_URL_ENV = "MCP_OAUTH_JWKS_URL"                            
+      20 +AUDIENCE_ENV = "MCP_OAUTH_AUDIENCE"                            
+      21 +REQUIRED_SCOPES_ENV = "MCP_OAUTH_REQUIRED_SCOPES"              
+      22  
+      23 +                                                               
+      24  @dataclass(frozen=True)
+      25  class Config:
+      26      """Resolved runtime credentials.
+
+● Update(src/tattoo_feed/config.py)
+  ⎿  Added 60 lines
+       51              "copy .env.example to .env and fill in your creden
+           tials."
+       52          )
+       53      return Config(access_token=token, ig_user_id=user_id)
+       54 +                                                              
+       55 +                                                              
+       56 +@dataclass(frozen=True)                                       
+       57 +class AuthConfig:                                             
+       58 +    """Resolved OAuth 2.1 resource-server settings for the ext
+          +ernal IdP.                                                    
+       59 +                                                              
+       60 +    This is plain data (no MCP/HTTP imports) so it stays in ``
+          +core``; the                                                   
+       61 +    ``server`` layer turns it into the SDK's ``AuthSettings`` 
+          +and a token                                                   
+       62 +    verifier.                                                 
+       63 +                                                              
+       64 +    Attributes:                                               
+       65 +        issuer: The identity provider's issuer URL; tokens mus
+          +t carry this as                                               
+       66 +            their ``iss`` claim.                              
+       67 +        jwks_url: The IdP JWKS endpoint used to verify token s
+          +ignatures.                                                    
+       68 +        audience: The canonical public URI of this MCP server;
+          + tokens must be                                               
+       69 +            bound to it as their ``aud`` claim (RFC 8707).    
+       70 +        required_scopes: Scopes a token must carry to call the
+          + tools.                                                       
+       71 +    """                                                       
+       72 +                                                              
+       73 +    issuer: str                                               
+       74 +    jwks_url: str                                             
+       75 +    audience: str                                             
+       76 +    required_scopes: tuple[str, ...]                          
+       77 +                                                              
+       78 +                                                              
+       79 +def auth_configured() -> bool:                                
+       80 +    """Report whether OAuth resource-server settings are prese
+          +nt in the env.                                                
+       81 +                                                              
+       82 +    Returns:                                                  
+       83 +        ``True`` if at least the issuer is set, so the server 
+          +should boot in                                                
+       84 +        authenticated HTTP mode; ``False`` for the unauthentic
+          +ated stdio default                                            
+       85 +        used by the boot test and local development.          
+       86 +    """                                                       
+       87 +    return bool(os.environ.get(ISSUER_ENV))                   
+       88 +                                                              
+       89 +                                                              
+       90 +def load_auth_config() -> AuthConfig:                         
+       91 +    """Load the OAuth resource-server settings from the enviro
+          +nment.                                                        
+       92 +                                                              
+       93 +    Returns:                                                  
+       94 +        The resolved :class:`AuthConfig`.                     
+       95 +                                                              
+       96 +    Raises:                                                   
+       97 +        AuthConfigError: If the issuer, JWKS URL, or audience 
+          +is missing.                                                   
+       98 +    """                                                       
+       99 +    issuer = os.environ.get(ISSUER_ENV)                       
+      100 +    jwks_url = os.environ.get(JWKS_URL_ENV)                   
+      101 +    audience = os.environ.get(AUDIENCE_ENV)                   
+      102 +    if not issuer or not jwks_url or not audience:            
+      103 +        raise AuthConfigError(                                
+      104 +            f"{ISSUER_ENV}, {JWKS_URL_ENV}, and {AUDIENCE_ENV}
+          + must all be set "                                            
+      105 +            "to run the authenticated HTTP server; see .env.ex
+          +ample."                                                       
+      106 +        )                                                     
+      107 +    scopes = tuple(os.environ.get(REQUIRED_SCOPES_ENV, "").spl
+          +it())                                                         
+      108 +    return AuthConfig(                                        
+      109 +        issuer=issuer,                                        
+      110 +        jwks_url=jwks_url,                                    
+      111 +        audience=audience,                                    
+      112 +        required_scopes=scopes,                               
+      113 +    )                                                         
+
+● Now the token verifier in server/auth.py:
+
+● Write(src/tattoo_feed/server/auth.py)
+  ⎿  Wrote 166 lines to src/tattoo_feed/server/auth.py
+       1 """OAuth 2.1 resource-server bearer-token verification.
+       3 This is the ``server``-layer adapter that turns the core :class:
+       4 into the MCP SDK's auth surface: a :class:`JwksTokenVerifier` (v
+         alidates JWTs
+         hSettings``.
+       7 The verifier checks, per the MCP authorization spec (``RESEARCH.
+       8 signature against the IdP JWKS, ``iss`` == configured issuer, ``
+         aud`` ==
+          expiry. It
+         ; *enforcing*
+     … +184 lines (ctrl+o to expand)
+
+● Now wire the auth into app.py's module-global mcp, conditional on env so the
+  unauthenticated stdio boot path is preserved:
+
+● Update(src/tattoo_feed/server/app.py)
+  ⎿  Added 3 lines, removed 2 lines
+      12  from collections.abc import Mapping
+      13  from dataclasses import dataclass
+      14  from pathlib import Path
+      15 -from typing import Literal                                     
+      15 +from typing import Any, Literal                                
+      16  
+      17  import httpx
+      18  from mcp.server.fastmcp import FastMCP, Image
+      19  from mcp.types import ImageContent, TextContent
+      20  
+      21 -from tattoo_feed.config import load_config                     
+      21 +from tattoo_feed.config import auth_configured, load_auth_confi
+         +g, load_config                                                 
+      22 +from tattoo_feed.server.auth import JwksTokenVerifier, auth_set
+         +tings                                                          
+      23  from tattoo_feed.graph.client import BusinessDiscoveryClient
+      24  from tattoo_feed.imaging import fetch_preview
+      25  from tattoo_feed.models import Artist, InspirationItem, Post, P
+          reference
+
+● Update(src/tattoo_feed/server/app.py)
+  ⎿  Added 15 lines
+       82      return TransportSelection(transport="stdio", host=host, po
+           rt=port)
+       83  
+       84  
+       85 +def _auth_kwargs() -> dict[str, Any]:                         
+       86 +    """Return FastMCP auth kwargs when the OAuth env is config
+          +ured, else empty.                                             
+       87 +                                                              
+       88 +    Keeping this conditional preserves the unauthenticated std
+          +io default (the                                               
+       89 +    server boots and lists tools with no IdP settings); the pu
+          +blic HTTP                                                     
+       90 +    deployment sets ``MCP_OAUTH_*`` and is then protected as a
+          + resource server.                                             
+       91 +    """                                                       
+       92 +    if not auth_configured():                                 
+       93 +        return {}                                             
+       94 +    config = load_auth_config()                               
+       95 +    verifier = JwksTokenVerifier(config, httpx.Client(timeout=
+          +HTTP_TIMEOUT_SECONDS))                                        
+       96 +    return {"auth": auth_settings(config), "token_verifier": v
+          +erifier}                                                      
+       97 +                                                              
+       98 +                                                              
+       99  mcp = FastMCP(
+      100      "tattoo-feed",
+      101      instructions=(
+     ...
+      104          "save_to_inspiration to bookmark favourites, and recor
+           d_preference to "
+      105          "remember the user's taste."
+      106      ),
+      107 +    **_auth_kwargs(),                                         
+      108  )
+      109  
+      110  
+
+● Now promote pyjwt[crypto] to a direct pinned dependency and update the lock:
+
+● Update(pyproject.toml)
+  ⎿  Added 1 line
+      11      "mcp==1.27.2",
+      12      "pillow==12.2.0",
+      13      "pydantic==2.13.4",
+      14 +    "pyjwt[crypto]==2.13.0",                                   
+      15  ]
+      16  
+      17  [build-system]
+
+  Ran 1 shell command (ctrl+o to expand)
+
+● Now the comprehensive hermetic test suite for Chunk 2 (in-test RSA keypair,
+  JWKS mocked with respx, app-level 401/403/metadata via Starlette TestClient):
+
+● Write(tests/test_auth.py)
+  ⎿  Wrote 315 lines to tests/test_auth.py
+      1 """Hermetic tests for OAuth 2.1 resource-server token verificatio
+      2 
+      3 No live IdP and no live network: an RSA keypair is generated in-p
+        rocess, JWTs are
+        pp-level
+      5 behaviour (401 challenge, 403 insufficient-scope, RFC 9728 metada
+      6 against a real ``FastMCP`` streamable-http app via Starlette's ``
+        TestClient``.
+      7 """
+      9 from __future__ import annotations
+     … +372 lines (ctrl+o to expand)
+
+  Ran 1 shell command (ctrl+o to expand)
+
+● The @respx.mock(...) decorator form creates a separate router that respx.get
+  doesn't register on; the context-manager form (used by the passing app-level
+  tests) works. Let me convert the unit tests to context-manager form.
+
+● Update(tests/test_auth.py)
+  ⎿  Added 70 lines, removed 69 lines
+      88  # -------------------------------------------------------------
+          -------------- #
+      89  
+      90  
+      91 -@respx.mock(assert_all_called=False)                           
+      91  async def test_valid_token_is_accepted() -> None:
+      93 -    respx.get(JWKS_URL).mock(return_value=httpx.Response(200, j
+         -son=_jwks()))                                                  
+      94 -    result = await _verifier().verify_token(_make_token(extra={
+         -"scope": SCOPE}))                                              
+      92 +    with respx.mock(assert_all_called=False):                  
+      93 +        respx.get(JWKS_URL).mock(return_value=httpx.Response(20
+         +0, json=_jwks()))                                              
+      94 +        result = await _verifier().verify_token(_make_token(ext
+         +ra={"scope": SCOPE}))                                          
+      95      assert result is not None
+      96      assert result.subject == "user-123"
+      97      assert result.resource == AUDIENCE
+     ...
+      100      assert result.client_id == "user-123"
+      101  
+      102  
+      103 -@respx.mock(assert_all_called=False)                          
+      103  async def test_wrong_audience_is_rejected() -> None:
+      105 -    respx.get(JWKS_URL).mock(return_value=httpx.Response(200, 
+          -json=_jwks()))                                                
+      106 -    token = _make_token(aud="https://attacker.test", extra={"s
+          -cope": SCOPE})                                                
+      107 -    assert await _verifier().verify_token(token) is None      
+      104 +    with respx.mock(assert_all_called=False):                 
+      105 +        respx.get(JWKS_URL).mock(return_value=httpx.Response(2
+          +00, json=_jwks()))                                            
+      106 +        token = _make_token(aud="https://attacker.test", extra
+          +={"scope": SCOPE})                                            
+      107 +        assert await _verifier().verify_token(token) is None  
+      108  
+      109  
+      110 -@respx.mock(assert_all_called=False)                          
+      110  async def test_wrong_issuer_is_rejected() -> None:
+      112 -    respx.get(JWKS_URL).mock(return_value=httpx.Response(200, 
+          -json=_jwks()))                                                
+      113 -    token = _make_token(iss="https://evil-idp.test", extra={"s
+          -cope": SCOPE})                                                
+      114 -    assert await _verifier().verify_token(token) is None      
+      111 +    with respx.mock(assert_all_called=False):                 
+      112 +        respx.get(JWKS_URL).mock(return_value=httpx.Response(2
+          +00, json=_jwks()))                                            
+      113 +        token = _make_token(iss="https://evil-idp.test", extra
+          +={"scope": SCOPE})                                            
+      114 +        assert await _verifier().verify_token(token) is None  
+      115  
+      116  
+      117 -@respx.mock(assert_all_called=False)                          
+      117  async def test_expired_token_is_rejected() -> None:
+      119 -    respx.get(JWKS_URL).mock(return_value=httpx.Response(200, 
+          -json=_jwks()))                                                
+      120 -    token = _make_token(exp_delta=-60, extra={"scope": SCOPE})
+      121 -    assert await _verifier().verify_token(token) is None      
+      118 +    with respx.mock(assert_all_called=False):                 
+      119 +        respx.get(JWKS_URL).mock(return_value=httpx.Response(2
+          +00, json=_jwks()))                                            
+      120 +        token = _make_token(exp_delta=-60, extra={"scope": SCO
+          +PE})                                                          
+      121 +        assert await _verifier().verify_token(token) is None  
+      122  
+      123  
+      124 -@respx.mock(assert_all_called=False)                          
+      124  async def test_token_without_exp_is_rejected() -> None:
+      126 -    respx.get(JWKS_URL).mock(return_value=httpx.Response(200, 
+          -json=_jwks()))                                                
+      127 -    token = _make_token(include_exp=False, extra={"scope": SCO
+          -PE})                                                          
+      128 -    assert await _verifier().verify_token(token) is None      
+      125 +    with respx.mock(assert_all_called=False):                 
+      126 +        respx.get(JWKS_URL).mock(return_value=httpx.Response(2
+          +00, json=_jwks()))                                            
+      127 +        token = _make_token(include_exp=False, extra={"scope":
+          + SCOPE})                                                      
+      128 +        assert await _verifier().verify_token(token) is None  
+      129  
+      130  
+      131 -@respx.mock(assert_all_called=False)                          
+      131  async def test_bad_signature_is_rejected() -> None:
+      133 -    # Signed by a different key than the JWKS advertises, same
+          - kid.                                                         
+      134 -    respx.get(JWKS_URL).mock(return_value=httpx.Response(200, 
+          -json=_jwks()))                                                
+      135 -    token = _make_token(key=OTHER_KEY, extra={"scope": SCOPE})
+      136 -    assert await _verifier().verify_token(token) is None      
+      132 +    with respx.mock(assert_all_called=False):                 
+      133 +        # Signed by a different key than the JWKS advertises, 
+          +same kid.                                                     
+      134 +        respx.get(JWKS_URL).mock(return_value=httpx.Response(2
+          +00, json=_jwks()))                                            
+      135 +        token = _make_token(key=OTHER_KEY, extra={"scope": SCO
+          +PE})                                                          
+      136 +        assert await _verifier().verify_token(token) is None  
+      137  
+      138  
+      139 -@respx.mock(assert_all_called=False)                          
+      139  async def test_unknown_kid_is_rejected_after_refetch() -> None
+           :
+      141 -    route = respx.get(JWKS_URL).mock(                         
+      142 -        return_value=httpx.Response(200, json=_jwks(kid="serve
+          -r-kid"))                                                      
+      143 -    )                                                         
+      144 -    token = _make_token(kid="missing-kid", extra={"scope": SCO
+          -PE})                                                          
+      145 -    assert await _verifier().verify_token(token) is None      
+      146 -    # Initial fetch + one refetch on the cache miss (possible 
+          -key rotation).                                                
+      147 -    assert route.call_count == 2                              
+      140 +    with respx.mock(assert_all_called=False):                 
+      141 +        route = respx.get(JWKS_URL).mock(                     
+      142 +            return_value=httpx.Response(200, json=_jwks(kid="s
+          +erver-kid"))                                                  
+      143 +        )                                                     
+      144 +        token = _make_token(kid="missing-kid", extra={"scope":
+          + SCOPE})                                                      
+      145 +        assert await _verifier().verify_token(token) is None  
+      146 +        # Initial fetch + one refetch on the cache miss (possi
+          +ble key rotation).                                            
+      147 +        assert route.call_count == 2                          
+      148  
+      149  
+      150 -@respx.mock(assert_all_called=False)                          
+      150  async def test_malformed_token_is_rejected_without_network() -
+           > None:
+      152 -    route = respx.get(JWKS_URL).mock(return_value=httpx.Respon
+          -se(200, json=_jwks()))                                        
+      153 -    assert await _verifier().verify_token("not-a-jwt") is None
+      154 -    assert route.call_count == 0                              
+      151 +    with respx.mock(assert_all_called=False):                 
+      152 +        route = respx.get(JWKS_URL).mock(return_value=httpx.Re
+          +sponse(200, json=_jwks()))                                    
+      153 +        assert await _verifier().verify_token("not-a-jwt") is 
+          +None                                                          
+      154 +        assert route.call_count == 0                          
+      155  
+      156  
+      157 -@respx.mock(assert_all_called=False)                          
+      157  async def test_token_without_kid_header_is_rejected() -> None:
+      159 -    route = respx.get(JWKS_URL).mock(return_value=httpx.Respon
+          -se(200, json=_jwks()))                                        
+      160 -    now = int(time.time())                                    
+      161 -    token = jwt.encode(                                       
+      162 -        {"iss": ISSUER, "aud": AUDIENCE, "sub": "x", "exp": no
+          -w + 60},                                                      
+      163 -        PRIVATE_KEY,                                          
+      164 -        algorithm="RS256",                                    
+      165 -    )                                                         
+      166 -    assert await _verifier().verify_token(token) is None      
+      167 -    assert route.call_count == 0                              
+      158 +    with respx.mock(assert_all_called=False):                 
+      159 +        route = respx.get(JWKS_URL).mock(return_value=httpx.Re
+          +sponse(200, json=_jwks()))                                    
+      160 +        now = int(time.time())                                
+      161 +        token = jwt.encode(                                   
+      162 +            {"iss": ISSUER, "aud": AUDIENCE, "sub": "x", "exp"
+          +: now + 60},                                                  
+      163 +            PRIVATE_KEY,                                      
+      164 +            algorithm="RS256",                                
+      165 +        )                                                     
+      166 +        assert await _verifier().verify_token(token) is None  
+      167 +        assert route.call_count == 0                          
+      168  
+      169  
+      170 -@respx.mock(assert_all_called=False)                          
+      170  async def test_jwks_fetch_error_returns_none() -> None:
+      172 -    respx.get(JWKS_URL).mock(return_value=httpx.Response(500))
+      173 -    assert await _verifier().verify_token(_make_token(extra={"
+          -scope": SCOPE})) is None                                      
+      171 +    with respx.mock(assert_all_called=False):                 
+      172 +        respx.get(JWKS_URL).mock(return_value=httpx.Response(5
+          +00))                                                          
+      173 +        token = _make_token(extra={"scope": SCOPE})           
+      174 +        assert await _verifier().verify_token(token) is None  
+      175  
+      176  
+      176 -@respx.mock(assert_all_called=False)                          
+      177  async def test_jwks_is_cached_across_calls() -> None:
+      178 -    route = respx.get(JWKS_URL).mock(return_value=httpx.Respon
+          -se(200, json=_jwks()))                                        
+      179 -    verifier = _verifier()                                    
+      180 -    assert await verifier.verify_token(_make_token(extra={"sco
+          -pe": SCOPE})) is not None                                     
+      181 -    assert await verifier.verify_token(_make_token(extra={"sco
+          -pe": SCOPE})) is not None                                     
+      182 -    assert route.call_count == 1                              
+      178 +    with respx.mock(assert_all_called=False):                 
+      179 +        route = respx.get(JWKS_URL).mock(return_value=httpx.Re
+          +sponse(200, json=_jwks()))                                    
+      180 +        verifier = _verifier()                                
+      181 +        assert await verifier.verify_token(_make_token(extra={
+          +"scope": SCOPE})) is not None                                 
+      182 +        assert await verifier.verify_token(_make_token(extra={
+          +"scope": SCOPE})) is not None                                 
+      183 +        assert route.call_count == 1                          
+      184  
+      185  
+      185 -@respx.mock(assert_all_called=False)                          
+      186  async def test_key_rotation_triggers_single_refetch() -> None:
+      187 -    route = respx.get(JWKS_URL).mock(                         
+      188 -        side_effect=[                                         
+      189 -            httpx.Response(200, json={"keys": []}),  # stale c
+          -ache: kid absent                                              
+      190 -            httpx.Response(200, json=_jwks()),  # rotated: kid
+          - present                                                      
+      191 -        ]                                                     
+      192 -    )                                                         
+      193 -    result = await _verifier().verify_token(_make_token(extra=
+          -{"scope": SCOPE}))                                            
+      187 +    with respx.mock(assert_all_called=False):                 
+      188 +        route = respx.get(JWKS_URL).mock(                     
+      189 +            side_effect=[                                     
+      190 +                httpx.Response(200, json={"keys": []}),  # sta
+          +le cache: kid absent                                          
+      191 +                httpx.Response(200, json=_jwks()),  # rotated:
+          + kid present                                                  
+      192 +            ]                                                 
+      193 +        )                                                     
+      194 +        result = await _verifier().verify_token(_make_token(ex
+          +tra={"scope": SCOPE}))                                        
+      195      assert result is not None
+      196      assert route.call_count == 2
+      197  
+      198  
+      198 -@respx.mock(assert_all_called=False)                          
+      199  async def test_missing_scope_claim_is_not_rejected_by_verifier
+           () -> None:
+      200      # Scope *enforcement* is the SDK middleware's job (403); t
+           he verifier still
+      201      # accepts a well-formed token and reports its (empty) scop
+           e set.
+      202 -    respx.get(JWKS_URL).mock(return_value=httpx.Response(200, 
+          -json=_jwks()))                                                
+      203 -    result = await _verifier().verify_token(_make_token())    
+      202 +    with respx.mock(assert_all_called=False):                 
+      203 +        respx.get(JWKS_URL).mock(return_value=httpx.Response(2
+          +00, json=_jwks()))                                            
+      204 +        result = await _verifier().verify_token(_make_token())
+      205      assert result is not None
+      206      assert result.scopes == []
+      207  
+     ...
+      215          ({"scope": ["g", "h"]}, ["g", "h"]),
+      216      ],
+      217  )
+      217 -@respx.mock(assert_all_called=False)                          
+      218  async def test_scope_claim_shapes_are_extracted(
+      219      extra: dict[str, Any], expected: list[str]
+      220  ) -> None:
+      221 -    respx.get(JWKS_URL).mock(return_value=httpx.Response(200, 
+          -json=_jwks()))                                                
+      222 -    result = await _verifier().verify_token(_make_token(extra=
+          -extra))                                                       
+      221 +    with respx.mock(assert_all_called=False):                 
+      222 +        respx.get(JWKS_URL).mock(return_value=httpx.Response(2
+          +00, json=_jwks()))                                            
+      223 +        result = await _verifier().verify_token(_make_token(ex
+          +tra=extra))                                                   
+      224      assert result is not None
+      225      assert result.scopes == expected
+      226  
+
+  Ran 1 shell command (ctrl+o to expand)
+
+● The with respx.mock(...) context activates a new router, but respx.get()
+  registers on respx's global router — mismatch. I must bind the router and call
+  .get on it. Let me fix both patterns globally.
+
+  Ran 2 shell commands (ctrl+o to expand)
+
+● All 23 auth tests pass. Now the full gate:
+
+  Ran 1 shell command (ctrl+o to expand)
+● Gate is green on the floor (99.74% ≥ 90%), but CLAUDE.md §2 says protect the
+  100% baseline. Let me see the lint errors and the one uncovered line.
+
+  Ran 1 shell command (ctrl+o to expand)
+
+● Let me apply auto-fixes (format + import sort), add the missing __init__
+  docstring, then handle remaining long lines and the uncovered raise branch.
+
+  Ran 1 shell command (ctrl+o to expand)
+
+● Now fix the D107 by moving the Args to __init__'s docstring, and add a config
+  test for the raise branch.
+
+● Update(src/tattoo_feed/server/auth.py)
+  ⎿  Added 8 lines, removed 7 lines
+      57  
+      58  
+      59  class JwksTokenVerifier(TokenVerifier):
+      60 -    """Verify IdP-issued JWT bearer tokens against a cached JWK
+         -S.                                                             
+      60 +    """Verify IdP-issued JWT bearer tokens against a cached JWK
+         +S."""                                                          
+      61  
+      62 -    Args:                                                      
+      63 -        config: Resource-server settings (issuer, JWKS URL, aud
+         -ience).                                                        
+      64 -        http_client: Injected client used to fetch the JWKS. In
+         -jecting it keeps                                               
+      65 -            the verifier hermetic under test.                  
+      66 -    """                                                        
+      67 -                                                               
+      62      def __init__(self, config: AuthConfig, http_client: httpx.C
+          lient) -> None:
+      63 +        """Store the resource-server config and the injected JW
+         +KS client.                                                     
+      64 +                                                               
+      65 +        Args:                                                  
+      66 +            config: Resource-server settings (issuer, JWKS URL,
+         + audience).                                                    
+      67 +            http_client: Injected client used to fetch the JWKS
+         +. Injecting it                                                 
+      68 +                keeps the verifier hermetic under test.        
+      69 +        """                                                    
+      70          self._config = config
+      71          self._http = http_client
+      72          self._jwks_cache: dict[str, Any] | None = None
+
+● Now read test_config.py to add the load_auth_config raise-branch test in the
+  right style:
+
+  Read 1 file (ctrl+o to expand)
+
+● Update(tests/test_config.py)
+  ⎿  Added 14 lines, removed 2 lines
+       4  
+       5  import pytest
+       6  
+       7 -from tattoo_feed.config import ACCESS_TOKEN_ENV, USER_ID_ENV, C
+         -onfig, load_config                                             
+       8 -from tattoo_feed.errors import TattooFeedError                 
+       7 +from tattoo_feed.config import (                               
+       8 +    ACCESS_TOKEN_ENV,                                          
+       9 +    AUDIENCE_ENV,                                              
+      10 +    ISSUER_ENV,                                                
+      11 +    JWKS_URL_ENV,                                              
+      12 +    REQUIRED_SCOPES_ENV,                                       
+      13 +    USER_ID_ENV,                                               
+      14 +    AuthConfig,                                                
+      15 +    Config,                                                    
+      16 +    auth_configured,                                           
+      17 +    load_auth_config,                                          
+      18 +    load_config,                                               
+      19 +)                                                              
+      20 +from tattoo_feed.errors import AuthConfigError, TattooFeedError
+      21  
+      22  
+      23  def test_load_config_reads_both_vars(monkeypatch: pytest.Monkey
+          Patch) -> None:
+
+● Update(tests/test_config.py)
+  ⎿  Added 42 lines
+      36          monkeypatch.setenv(present, "value")
+      37      with pytest.raises(TattooFeedError):
+      38          load_config()
+      39 +                                                               
+      40 +                                                               
+      41 +def _set_auth_env(monkeypatch: pytest.MonkeyPatch) -> None:    
+      42 +    monkeypatch.setenv(ISSUER_ENV, "https://idp.test")         
+      43 +    monkeypatch.setenv(JWKS_URL_ENV, "https://idp.test/.well-kn
+         +own/jwks.json")                                                
+      44 +    monkeypatch.setenv(AUDIENCE_ENV, "https://mcp.test/mcp")   
+      45 +    monkeypatch.setenv(REQUIRED_SCOPES_ENV, "a b")             
+      46 +                                                               
+      47 +                                                               
+      48 +def test_auth_configured_reflects_issuer(monkeypatch: pytest.Mo
+         +nkeyPatch) -> None:                                            
+      49 +    monkeypatch.delenv(ISSUER_ENV, raising=False)              
+      50 +    assert auth_configured() is False                          
+      51 +    monkeypatch.setenv(ISSUER_ENV, "https://idp.test")         
+      52 +    assert auth_configured() is True                           
+      53 +                                                               
+      54 +                                                               
+      55 +def test_load_auth_config_reads_all_vars(monkeypatch: pytest.Mo
+         +nkeyPatch) -> None:                                            
+      56 +    _set_auth_env(monkeypatch)                                 
+      57 +    assert load_auth_config() == AuthConfig(                   
+      58 +        issuer="https://idp.test",                             
+      59 +        jwks_url="https://idp.test/.well-known/jwks.json",     
+      60 +        audience="https://mcp.test/mcp",                       
+      61 +        required_scopes=("a", "b"),                            
+      62 +    )                                                          
+      63 +                                                               
+      64 +                                                               
+      65 +def test_load_auth_config_defaults_scopes_to_empty(            
+      66 +    monkeypatch: pytest.MonkeyPatch,                           
+      67 +) -> None:                                                     
+      68 +    _set_auth_env(monkeypatch)                                 
+      69 +    monkeypatch.delenv(REQUIRED_SCOPES_ENV, raising=False)     
+      70 +    assert load_auth_config().required_scopes == ()            
+      71 +                                                               
+      72 +                                                               
+      73 +@pytest.mark.parametrize("missing", [ISSUER_ENV, JWKS_URL_ENV, 
+         +AUDIENCE_ENV])                                                 
+      74 +def test_load_auth_config_missing_var_raises(                  
+      75 +    monkeypatch: pytest.MonkeyPatch, missing: str              
+      76 +) -> None:                                                     
+      77 +    _set_auth_env(monkeypatch)                                 
+      78 +    monkeypatch.delenv(missing, raising=False)                 
+      79 +    with pytest.raises(AuthConfigError):                       
+      80 +        load_auth_config()                                     
+
+  Ran 1 shell command (ctrl+o to expand)
+
+● Chunk 2 gate fully green: 136 passed, 100% coverage. Committing surgically.
+
+  Committed 2 (ctrl+o to expand)
+
+● Chunk 2 committed. Now Chunk 3 — Apps SDK image widget. First, re-verify the
+  widget contract against the live Apps SDK docs (CLAUDE.md §1.6), and
+  investigate how FastMCP lets a tool emit _meta + structuredContent.
+
+  Ran 3 shell commands (ctrl+o to expand)
+
+● convert_result passes a CallToolResult through untouched when the tool has no
+  output schema — so I can return one directly to control _meta,
+  structuredContent, and content. Let me confirm the @mcp.tool / @mcp.resource
+  decorator signatures and that a ui:// URI is accepted.
+
+  Ran 1 shell command (ctrl+o to expand)
+
+● structured_output=False disables the schema, and @mcp.tool(meta=...) /
+  @mcp.resource(mime_type=...) give me what I need. Let me confirm _meta=
+  construction and that the low-level server passes a returned CallToolResult
+  through.
+
+  Ran 1 shell command (ctrl+o to expand)
+
+● The low-level server passes a returned CallToolResult straight through (return
+  types.ServerResult(results)), so I can fully control _meta/structuredContent.
+  Per CLAUDE.md §1.6 I must re-verify the widget's data-bridge field against
+  live docs. Let me attempt that.
+
+● Fetch(https://developers.openai.com/apps-sdk/build/custom-ux)
+  ⎿  Received 378.2KB (200 OK)
+
+● Live docs confirm RESEARCH.md §1 (window.openai.toolOutput =
+  structuredContent; ui/notifications/tool-result postMessage; mimeType
+  text/html;profile=mcp-app; plus an openai:set_globals event). No contradiction
+  → no BLOCKERS needed. The exact _meta forwarding field stays undocumented
+  (RESEARCH already flagged this), so the widget reads it defensively. Let me
+  create the widget asset:
+
+● Write(src/tattoo_feed/server/widgets/inspiration.html)
+  ⎿  Wrote 122 lines to src/tattoo_feed/server/widgets/inspiration.html
+       1 <!doctype html>
+       2 <html lang="en">
+       3   <head>
+       5     <meta name="viewport" content="width=device-width, initial-s
+         cale=1" />
+       6     <title>Tattoo inspiration</title>
+       7     <style>
+       8       :root {
+      10         font-family: system-ui, -apple-system, Segoe UI, Roboto,
+          sans-serif;
+     … +123 lines (ctrl+o to expand)
+
+● Now update app.py: imports, widget constants + resource registration, and the
+  reworked next_inspiration.
+● Update(src/tattoo_feed/server/app.py)
+  ⎿  Added 3 lines, removed 2 lines
+       8  
+       9  from __future__ import annotations
+      10  
+      11 +import base64                                                  
+      12  import os
+      13  from collections.abc import Mapping
+      14  from dataclasses import dataclass
+     ...
+      16  from typing import Any, Literal
+      17  
+      18  import httpx
+      18 -from mcp.server.fastmcp import FastMCP, Image                  
+      19 -from mcp.types import ImageContent, TextContent                
+      19 +from mcp.server.fastmcp import FastMCP                         
+      20 +from mcp.types import CallToolResult, TextContent              
+      21  
+      22  from tattoo_feed.config import auth_configured, load_auth_confi
+          g, load_config
+      23  from tattoo_feed.graph.client import BusinessDiscoveryClient
+
+● Update(src/tattoo_feed/server/app.py)
+  ⎿  Added 12 lines
+      45  DEFAULT_HOST = "0.0.0.0"
+      46  DEFAULT_PORT = 8000
+      47  
+      48 +#: URI and mimeType of the Apps SDK widget that renders next_in
+         +spiration in                                                   
+      49 +#: ChatGPT (a raw MCP image block is not rendered inline there;
+         + see RESEARCH.md                                               
+      50 +#: §1). The mimeType profile is what marks the resource as an A
+         +pps SDK widget.                                                
+      51 +WIDGET_URI = "ui://widget/inspiration.html"                    
+      52 +WIDGET_MIME = "text/html;profile=mcp-app"                      
+      53 +_WIDGET_PATH = Path(__file__).parent / "widgets" / "inspiration
+         +.html"                                                         
+      54  
+      55 +                                                               
+      56 +def _read_widget_html() -> str:                                
+      57 +    """Return the static widget HTML shipped alongside this mod
+         +ule."""                                                        
+      58 +    return _WIDGET_PATH.read_text(encoding="utf-8")            
+      59 +                                                               
+      60 +                                                               
+      61  @dataclass(frozen=True)
+      62  class TransportSelection:
+      63      """A resolved transport choice derived purely from the envi
+          ronment.
+
+● Now register the widget resource and rework next_inspiration:
+
+● Update(src/tattoo_feed/server/app.py)
+  ⎿  Added 40 lines, removed 13 lines
+      210      return _get_services().feed.get_feed(limit_per_artist)
+      211  
+      212  
+      213 -@mcp.tool()                                                   
+      214 -def next_inspiration() -> list[ImageContent | TextContent]:   
+      213 +@mcp.resource(WIDGET_URI, name="inspiration-widget", mime_type
+          +=WIDGET_MIME)                                                 
+      214 +def inspiration_widget() -> str:                              
+      215 +    """Serve the Apps SDK widget HTML that renders a next_insp
+          +iration result."""                                            
+      216 +    return _read_widget_html()                                
+      217 +                                                              
+      218 +                                                              
+      219 +@mcp.tool(                                                    
+      220 +    structured_output=False,                                  
+      221 +    meta={"openai/outputTemplate": WIDGET_URI},               
+      222 +)                                                             
+      223 +def next_inspiration() -> CallToolResult:                     
+      224      """Show one not-yet-seen post for inspiration, then mark i
+           t seen.
+      225  
+      217 -    Returns a rendered preview image (downscaled, EXIF-strippe
+          -d) alongside the                                              
+      218 -    artist handle and permalink. Calling repeatedly walks thro
+          -ugh unseen posts;                                             
+      219 -    use reset_seen to start over.                             
+      226 +    Returns an Apps SDK widget result: the model-facing ``stru
+          +cturedContent``                                               
+      227 +    carries the handle, permalink, and caption (no image bytes
+          +), while the                                                  
+      228 +    downscaled, EXIF-stripped preview travels as a data URL in
+          + ``_meta`` so the                                             
+      229 +    host can render it in the widget without exposing base64 t
+          +o the model                                                   
+      230 +    (RESEARCH.md §1). Calling repeatedly walks through unseen 
+          +posts; use                                                    
+      231 +    reset_seen to start over.                                 
+      232      """
+      233      services = _get_services()
+      234      post = services.inspiration.next_inspiration()
+      235      if post is None:
+      224 -        return [                                              
+      225 -            TextContent(                                      
+      226 -                type="text",                                  
+      227 -                text="No new inspiration right now — call rese
+          -t_seen to start over.",                                       
+      228 -            )                                                 
+      229 -        ]                                                     
+      236 +        return CallToolResult(                                
+      237 +            content=[                                         
+      238 +                TextContent(                                  
+      239 +                    type="text",                              
+      240 +                    text="No new inspiration right now — call 
+          +reset_seen to start over.",                                   
+      241 +                )                                             
+      242 +            ]                                                 
+      243 +        )                                                     
+      244      preview = fetch_preview(post.image_url, services.http)
+      231 -    image = Image(data=preview, format="jpeg").to_image_conten
+          -t()                                                           
+      232 -    return [image, TextContent(type="text", text=_format_post(
+          -post))]                                                       
+      245 +    data_url = "data:image/jpeg;base64," + base64.b64encode(pr
+          +eview).decode("ascii")                                        
+      246 +    summary = {                                               
+      247 +        "handle": post.artist_handle,                         
+      248 +        "permalink": post.permalink,                          
+      249 +        "caption": post.caption or "",                        
+      250 +    }                                                         
+      251 +    return CallToolResult(                                    
+      252 +        content=[TextContent(type="text", text=_format_post(po
+          +st))],                                                        
+      253 +        structuredContent=summary,                            
+      254 +        _meta={                                               
+      255 +            "openai/outputTemplate": WIDGET_URI,              
+      256 +            "ui": {"resourceUri": WIDGET_URI},                
+      257 +            "inspiration": {**summary, "imageDataUrl": data_ur
+          +l},                                                           
+      258 +        },                                                    
+      259 +    )                                                         
+      260  
+      261  
+      262  @mcp.tool()
+
+● Let me look at the existing image-contract tests I must update to the new
+  widget contract:
+
+  Read 1 file (ctrl+o to expand)
+
+● Now let me read test_image_rendering.py (the other test that asserts the old
+  image contract):
+
+  Read 1 file (ctrl+o to expand)
+
+● I'll update both image-contract tests to the widget contract. First, confirm
+  how to read a registered resource (for the mimeType assertion):
+
+  Ran 1 shell command (ctrl+o to expand)
+
+● await mcp.read_resource(uri) returns items with .content and .mime_type. Now
+  let me rewrite the two image-contract tests. First test_server_tools.py:
+
+● Update(tests/test_server_tools.py)
+  ⎿  Added 1 line
+       6  
+       7  from __future__ import annotations
+       8  
+       9 +import json                                                    
+      10  from collections.abc import Iterator
+      11  from datetime import UTC, datetime
+      12  from pathlib import Path
+
+● Update(tests/test_server_tools.py)
+  ⎿  Added 42 lines, removed 10 lines
+      142  
+      143  
+      144  @respx.mock
+      145 -def test_next_inspiration_returns_image_then_metadata() -> Non
+          -e:                                                            
+      145 +def test_next_inspiration_returns_widget_result() -> None:    
+      146 +    # Contract change (CLAUDE.md §1.1): next_inspiration now r
+          +eturns an Apps SDK                                            
+      147 +    # widget result, not a raw image block. The model-facing s
+          +tructuredContent                                              
+      148 +    # carries the handle/permalink/caption and NO base64; the 
+          +preview travels as                                            
+      149 +    # a data URL in _meta, linked to the widget via openai/out
+          +putTemplate.                                                  
+      150      services = _install(_post("p9"))
+      151      services.http = httpx.Client()
+      152      respx.get("https://cdn/p9.jpg").mock(
+      153          return_value=httpx.Response(200, content=FIXTURE.read_
+           bytes())
+      154      )
+      151 -    blocks = app.next_inspiration()                           
+      152 -    assert blocks[0].type == "image"                          
+      153 -    assert blocks[0].mimeType == "image/jpeg"                 
+      154 -    assert blocks[1].type == "text"                           
+      155 -    assert "@alice" in blocks[1].text                         
+      156 -    assert "https://ig/p/p9" in blocks[1].text                
+      155 +    result = app.next_inspiration()                           
+      156  
+      157 +    assert result.meta is not None                            
+      158 +    assert result.meta["openai/outputTemplate"] == app.WIDGET_
+          +URI                                                           
+      159 +    assert result.meta["ui"]["resourceUri"] == app.WIDGET_URI 
+      160 +    assert result.meta["inspiration"]["imageDataUrl"].startswi
+          +th(                                                           
+      161 +        "data:image/jpeg;base64,"                             
+      162 +    )                                                         
+      163  
+      164 +    sc = result.structuredContent                             
+      165 +    assert sc is not None                                     
+      166 +    assert sc["handle"] == "alice"                            
+      167 +    assert sc["permalink"] == "https://ig/p/p9"               
+      168 +    # The model-facing channels must not carry the base64 prev
+          +iew.                                                          
+      169 +    assert "imageDataUrl" not in sc                           
+      170 +    assert "base64" not in json.dumps(sc)                     
+      171 +    assert all("base64" not in block.text for block in result.
+          +content)                                                      
+      172 +                                                              
+      173 +    # The text content still narrates the post for the model. 
+      174 +    assert result.content[0].type == "text"                   
+      175 +    assert "@alice" in result.content[0].text                 
+      176 +    assert "https://ig/p/p9" in result.content[0].text        
+      177 +                                                              
+      178 +                                                              
+      179  def test_next_inspiration_when_nothing_new() -> None:
+      180      _install(None)
+      161 -    blocks = app.next_inspiration()                           
+      162 -    assert blocks[0].type == "text"                           
+      163 -    assert "reset_seen" in blocks[0].text                     
+      181 +    result = app.next_inspiration()                           
+      182 +    assert result.structuredContent is None                   
+      183 +    assert result.meta is None                                
+      184 +    assert result.content[0].type == "text"                   
+      185 +    assert "reset_seen" in result.content[0].text             
+      186  
+      187  
+      188 +async def test_inspiration_widget_resource_is_registered() -> 
+          +None:                                                         
+      189 +    items = list(await app.mcp.read_resource(app.WIDGET_URI)) 
+      190 +    assert len(items) == 1                                    
+      191 +    assert items[0].mime_type == app.WIDGET_MIME              
+      192 +    body = items[0].content                                   
+      193 +    assert isinstance(body, str)                              
+      194 +    assert "<img" in body                                     
+      195 +    assert "window.openai" in body                            
+      196 +                                                              
+      197 +                                                              
+      198  def test_save_to_inspiration_passes_notes() -> None:
+      199      _install(_post())
+      200      item = app.save_to_inspiration("p1", notes="love it")
+
+● Now rewrite test_image_rendering.py to the widget contract (image data URL in
+  _meta):
+
+● Write(tests/test_image_rendering.py)
+  ⎿  Added 16 lines, removed 11 lines
+       1 -"""Structural tests for the rendered inspiration image block (C
+         -hunk 8).                                                       
+       1 +"""Structural tests for the rendered inspiration preview (widge
+         +t contract).                                                   
+       2  
+       3 -These verify the *structure* of what next_inspiration returns —
+         - valid base64,                                                 
+       4 -correct MIME type, non-zero bytes, and a long edge within the p
+         -inned 640px cap.                                               
+       5 -They cannot verify that the image *visually renders* in a clien
+         -t; that is the                                                 
+       6 -human eyeball check described in REVIEW.md.                    
+       3 +Updated in Chunk 3 (contract change per CLAUDE.md §1.1): the pr
+         +eview no longer                                                
+       4 +travels as a native MCP image block — ChatGPT does not render t
+         +hose inline                                                    
+       5 +(RESEARCH.md §1) — but as a data URL inside the tool result ``_
+         +meta`` that the                                                
+       6 +Apps SDK widget renders. These checks remain at least as strict
+         + as the old image                                              
+       7 +-block checks: the data URL must be valid base64, ``image/jpeg`
+         +`, non-empty, a                                                
+       8 +real JPEG, and within the pinned 640px long-edge cap. They cann
+         +ot verify that                                                 
+       9 +the image *visually renders* in ChatGPT; that is the human eyeb
+         +all check in                                                   
+      10 +REVIEW.md.                                                     
+      11  """
+      12  
+      13  from __future__ import annotations
+     ...
+      37  
+      38  
+      39  @respx.mock
+      36 -def test_next_inspiration_image_block_is_structurally_valid() -
+         -> None:                                                        
+      40 +def test_next_inspiration_preview_data_url_is_structurally_vali
+         +d() -> None:                                                   
+      41      post = Post(
+      42          id="p1",
+      43          artist_handle="alice",
+     ...
+      57          return_value=httpx.Response(200, content=FIXTURE.read_b
+          ytes())
+      58      )
+      59      try:
+      56 -        blocks = app.next_inspiration()                        
+      60 +        result = app.next_inspiration()                        
+      61      finally:
+      62          app._services = None
+      63  
+      60 -    image = blocks[0]                                          
+      61 -    assert image.type == "image"                               
+      62 -    assert image.mimeType == "image/jpeg"                      
+      64 +    assert result.meta is not None                             
+      65 +    data_url = result.meta["inspiration"]["imageDataUrl"]      
+      66 +    prefix = "data:image/jpeg;base64,"                         
+      67 +    assert data_url.startswith(prefix)  # correct MIME type    
+      68  
+      64 -    raw = base64.b64decode(image.data, validate=True)  # valid 
+         -base64                                                         
+      69 +    raw = base64.b64decode(data_url[len(prefix) :], validate=Tr
+         +ue)  # valid base64                                            
+      70      assert len(raw) > 0  # non-zero bytes
+      71  
+      72      decoded = PILImage.open(io.BytesIO(raw))
+
+  Ran 1 shell command (ctrl+o to expand)
+
+● Both updated test files pass. Now the full gate:
+
+  Ran 1 shell command (ctrl+o to expand)
+
+● Tests pass at 100% coverage; one ruff error remains. Let me see it:
+
+  Ran 1 shell command (ctrl+o to expand)
+
+● The deeper nesting pushed the string over 88 chars. Let me extract it to a
+  constant.
+
+● Update(src/tattoo_feed/server/app.py)
+  ⎿  Added 2 lines
+      52  WIDGET_MIME = "text/html;profile=mcp-app"
+      53  _WIDGET_PATH = Path(__file__).parent / "widgets" / "inspiration
+          .html"
+      54  
+      55 +_NO_INSPIRATION_TEXT = "No new inspiration right now — call res
+         +et_seen to start over."                                        
+      56  
+      57 +                                                               
+      58  def _read_widget_html() -> str:
+      59      """Return the static widget HTML shipped alongside this mod
+          ule."""
+      60      return _WIDGET_PATH.read_text(encoding="utf-8")
+
+● Update(src/tattoo_feed/server/app.py)
+  ⎿  Added 1 line, removed 6 lines
+      236      post = services.inspiration.next_inspiration()
+      237      if post is None:
+      238          return CallToolResult(
+      239 -            content=[                                         
+      240 -                TextContent(                                  
+      241 -                    type="text",                              
+      242 -                    text="No new inspiration right now — call 
+          -reset_seen to start over.",                                   
+      243 -                )                                             
+      244 -            ]                                                 
+      239 +            content=[TextContent(type="text", text=_NO_INSPIRA
+          +TION_TEXT)]                                                   
+      240          )
+      241      preview = fetch_preview(post.image_url, services.http)
+      242      data_url = "data:image/jpeg;base64," + base64.b64encode(pr
+           eview).decode("ascii")
+
+  Ran 1 shell command (ctrl+o to expand)
+
+● Chunk 3 gate fully green: 137 passed, 100% coverage, all four checks pass.
+  Committing surgically.
+  Committed 3 (ctrl+o to expand)
+
+● Chunk 3 committed. Now Chunk 4 — Container + ngrok ingress (writes files; gate
+  stays hermetic). Let me re-read RESEARCH §6, the existing
+  Dockerfile/.dockerignore, and verify the widget asset will ship in the wheel.
+
+  Listed 1 directory (ctrl+o to expand)
+
+● Let me verify the widget HTML ships in the built wheel (so a non-editable
+  container install works), and check the lock is current:
+
+  Ran 1 shell command (ctrl+o to expand)
+
+● The widget HTML ships in the wheel automatically. Now let me check the uv
+  version to pin in the server image, and confirm the lock is in sync.
+
+  Ran 1 shell command (ctrl+o to expand)
+
+● uv 0.11.21, lock is in sync. Now write Dockerfile.server (multi-stage, source
+  baked, frozen deps, no secrets):
+
+● Write(Dockerfile.server)
+  ⎿  Wrote 57 lines to Dockerfile.server
+       1 # syntax=docker/dockerfile:1
+       3 # Production image for the tattoo-feed MCP server over streamabl
+       4 #
+       5 # Unlike the dev `Dockerfile` (which bakes in Claude Code/git an
+       6 # source at run time), this image BAKES the source and installs 
+       7 # dependencies from uv.lock. It contains NO secrets: Instagram c
+       8 # data dir, and the OAuth/IdP settings all arrive at run time as
+          environment
+         is the OAuth 2.1
+         EARCH.md §6).
+     … +64 lines (ctrl+o to expand)
+
+● Widget ships in the wheel; lock is in sync. Now write docker-compose.yml
+  (server + ngrok, least-privilege env), the helper script, and extend
+  .env.example.
+
+● Write(docker-compose.yml)
+  ⎿  Wrote 52 lines to docker-compose.yml
+      1 # Run the authenticated tattoo-feed MCP server publicly: the serv
+      2 # (OAuth 2.1 resource server over streamable-HTTP) plus an ngrok 
+        container that
+        come from .env
+      4 # at run time — nothing is baked into the images, and .env is git
+      5 #
+      6 # Usage: copy .env.example to .env, fill it in, then `docker comp
+      7 # (or scripts/serve.sh). This is a HUMAN step — it is never run b
+        y the build gate.
+      9 name: tattoo-feed
+     … +56 lines (ctrl+o to expand)
+
+● Write(scripts/serve.sh)
+  ⎿  Wrote 44 lines to scripts/serve.sh
+       1 #!/usr/bin/env bash
+       3 # Build and run the authenticated tattoo-feed MCP server behind 
+         ngrok, then
+       4 # print the public endpoint to point the ChatGPT connector at.
+       6 # This is a HUMAN convenience wrapper around docker-compose.yml 
+         — it is never
+         mages). It needs
+       8 # a populated .env (see .env.example); .env is gitignored and mu
+         st NOT be
+      10 set -euo pipefail
+     … +44 lines (ctrl+o to expand)
+
+  Ran 1 shell command (ctrl+o to expand)
+
+● Now extend .env.example with the optional stable-domain key:
+
+● Update(.env.example)
+  ⎿  File must be read first
+
+  Read 1 file (ctrl+o to expand)
+
+● Update(.env.example)
+  ⎿  Added 4 lines
+      38  # Authtoken for the ngrok container that exposes the server pub
+          licly.
+      39  # Free account -> dashboard -> Your Authtoken.
+      40  NGROK_AUTHTOKEN=your-ngrok-authtoken-here
+      41 +# Optional: a reserved ngrok domain for a stable public URL (so
+         + the ChatGPT                                                   
+      42 +# connector URL does not churn). If set, append `--domain=${NGR
+         +OK_DOMAIN}` to the                                             
+      43 +# ngrok command in docker-compose.yml. Leave unset to get a ran
+         +dom URL.                                                       
+      44 +# NGROK_DOMAIN=your-reserved-domain.ngrok-free.app             
+
+● Now run the gate (chunk 4 adds no source — should be unchanged green) and a
+  secrets/self-consistency check:
+
+  Ran 1 shell command (ctrl+o to expand)
+
+● Gate green, no secrets, .env untracked. Let me validate the compose YAML
+  parses and cross-check consistency (I can't build images per the
+  no-docker-in-docker rule):
+
+  Ran 1 shell command (ctrl+o to expand)
+
+● pyyaml isn't a dependency. Let me validate with grep-based checks instead:
+
+  Ran 1 shell command (ctrl+o to expand)
+
+● All self-consistent. Chunk 4 complete (gate unchanged-green, files present, no
+  secrets). Committing surgically.
+
+  Committed 4 (ctrl+o to expand)
+● Chunk 4 committed. Now Chunk 5 — Docs, REVIEW, final reconciliation. First the
+  required final audit: confirm core stays MCP-free, no stray # type: ignore,
+  no dead code.
+
+  Searched for 1 pattern (ctrl+o to expand)
+
+● Audit is clean: no MCP/OAuth/JWT imports outside server/, no stray # type: 
+  ignore, server/ only wires core services. Now let me read README.md to update
+  it.
+
+  Read 1 file (ctrl+o to expand)
+
+● Now update the README for the phase-2 remote/OAuth/widget architecture.
+  Several targeted edits:
+
+● Update(README.md)
+  ⎿  Added 11 lines, removed 3 lines
+       1  # Tattoo Feed
+       2  
+       3 -An **MCP (Model Context Protocol) server** that lets an LLM cli
+         -ent (e.g. Claude                                               
+       4 -Desktop) browse and curate posts from a hand-picked list of Ins
+         -tagram tattoo                                                  
+       5 -artists, via Instagram's **Business Discovery** API.           
+       3 +An **MCP (Model Context Protocol) server** that lets an LLM cli
+         +ent browse and                                                 
+       4 +curate posts from a hand-picked list of Instagram tattoo artist
+         +s, via Instagram's                                             
+       5 +**Business Discovery** API.                                    
+       6  
+       7  You point it at the artists you follow, and from your chat clie
+          nt you can pull a
+       8  merged feed, discover one post at a time, bookmark the ones you
+           like, and record
+       9  notes about your taste so a future session remembers them.
+      10  
+      11 +It runs two ways:                                              
+      12 +                                                               
+      13 +- **Locally over stdio** for a desktop MCP client (e.g. Claude 
+         +Desktop).                                                      
+      14 +- **Remotely over HTTP**, as an **OAuth 2.1-protected** resourc
+         +e server behind                                                
+      15 +  **ngrok** TLS ingress, so it can be added to **ChatGPT** as a
+         + custom connector.                                             
+      16 +  In ChatGPT, `next_inspiration` renders its preview image thro
+         +ugh an **Apps SDK                                              
+      17 +  widget** (ChatGPT does not render raw MCP image blocks inline
+         +).                                                             
+      18 +                                                               
+      19  ---
+      20  
+      21  ## Architecture
+
+● Update(README.md)
+  ⎿  Added 19 lines, removed 4 lines
+      27    models, typed errors, JSON-file repositories, the Graph API c
+          lient, image
+      28    processing, and the services that orchestrate them. Knows not
+          hing about MCP.
+      29  - **`server`** (`src/tattoo_feed/server/`) — a thin [FastMCP](h
+          ttps://github.com/modelcontextprotocol/python-sdk)
+      30 -  adapter that exposes `core` as MCP tools. Holds no business l
+         -ogic.                                                          
+      30 +  adapter that exposes `core` as MCP tools, plus the transport,
+         + OAuth                                                         
+      31 +  token-verification, and widget wiring. Holds no business logi
+         +c. (`core` stays                                               
+      32 +  MCP/OAuth/HTTP-transport-free; all of that lives here.)      
+      33  
+      34  ```
+      35  src/tattoo_feed/
+      34 -  config.py            # lazy env config (IG_ACCESS_TOKEN, IG_U
+         -SER_ID)                                                        
+      36 +  config.py            # lazy env config (Instagram + OAuth res
+         +ource-server settings)                                         
+      37    models.py            # Pydantic v2 value objects
+      36 -  errors.py            # typed error hierarchy                 
+      38 +  errors.py            # typed error hierarchy (incl. AuthError
+         +/AuthConfigError)                                              
+      39    imaging.py           # preview downscale + EXIF strip
+      40    repositories/        # Repository ABC + JSON-file stores (ato
+          mic writes)
+      41    graph/client.py      # Business Discovery client
+      42    services/            # FeedService, ArtistService, Inspiratio
+          nService, PreferenceService
+      41 -  server/app.py        # FastMCP tools + stdio entrypoint      
+      43 +  server/app.py        # FastMCP tools, stdio/http transport se
+         +lection, entrypoint                                            
+      44 +  server/auth.py       # OAuth 2.1 resource-server JWT verifier
+         + (JWKS-backed)                                                 
+      45 +  server/widgets/      # inspiration.html — the ChatGPT Apps SD
+         +K widget                                                       
+      46  ```
+      47  
+      48 +### Remote auth model                                          
+      49 +                                                               
+      50 +When the OAuth env is configured, the server runs as an **OAuth
+         + 2.1 resource                                                  
+      51 +server**: it validates the bearer JWT on every request (signatu
+         +re against the                                                 
+      52 +identity provider's JWKS, `iss`, `aud`/resource binding per RFC
+         + 8707, and                                                     
+      53 +expiry), rejecting unauthenticated callers with a spec-complian
+         +t `401` and                                                    
+      54 +serving RFC 9728 protected-resource metadata. It does **not** i
+         +ssue tokens — an                                               
+      55 +external identity provider (Auth0, Stytch, WorkOS, Descope, …) 
+         +is the                                                         
+      56 +authorization server, and ChatGPT drives the OAuth/PKCE login a
+         +gainst it. ngrok                                               
+      57 +is plain TLS ingress only; all auth lives in the server.       
+      58 +                                                               
+      59  ---
+      60  
+      61  ## Setup
+
+● Update(README.md)
+  ⎿  Added 16 lines, removed 2 lines
+      75  | `IG_USER_ID`       | The Instagram Business/Creator account i
+          d that owns the token. |
+      76  | `TATTOO_FEED_DATA_DIR` | Optional. Where the JSON stores live
+           (default `./data`).   |
+      77  
+      78 -`.env` is gitignored and must never be committed. Only `.env.ex
+         -ample` (with                                                   
+      79 -placeholders) is in the repo.                                  
+      78 +Stdio mode needs only the two Instagram values above. The **rem
+         +ote HTTP** mode                                                
+      79 +adds the transport and OAuth resource-server settings:         
+      80  
+      81 +| Variable           | Meaning                                 
+         +                       |                                       
+      82 +|--------------------|-----------------------------------------
+         +-----------------------|                                       
+      83 +| `MCP_TRANSPORT`    | `http` to serve streamable-HTTP; unset/a
+         +nything else = stdio.   |                                      
+      84 +| `MCP_HOST` / `MCP_PORT` | HTTP bind address (default `0.0.0.0
+         +` / `8000`).           |                                       
+      85 +| `MCP_OAUTH_ISSUER` | Your identity provider's issuer URL (tok
+         +ens' `iss`).           |                                       
+      86 +| `MCP_OAUTH_JWKS_URL` | The IdP JWKS endpoint used to verify t
+         +oken signatures.       |                                       
+      87 +| `MCP_OAUTH_AUDIENCE` | This server's canonical public URI — t
+         +he token audience (RFC 8707), e.g. `https://<host>/mcp`. |     
+      88 +| `MCP_OAUTH_REQUIRED_SCOPES` | Space-separated scopes a token 
+         +must carry.            |                                       
+      89 +| `NGROK_AUTHTOKEN`  | Authtoken for the ngrok ingress containe
+         +r.                     |                                       
+      90 +                                                               
+      91 +Auth is enabled only when `MCP_OAUTH_ISSUER` is set, so stdio/l
+         +ocal runs stay                                                 
+      92 +unauthenticated. `.env` is gitignored and must never be committ
+         +ed. Only                                                       
+      93 +`.env.example` (with placeholders) is in the repo.             
+      94 +                                                               
+      95  Getting credentials is a one-time manual step on Meta's side: c
+          reate a Meta app,
+      96  connect an Instagram Business/Creator account, and mint a **lon
+          g-lived** access
+      97  token with Business Discovery permission. Both the querying acc
+          ount and the
+
+● Now add the remote-run section and update the next_inspiration row and
+  limitations:
+
+● Update(README.md)
+  ⎿  Added 33 lines, removed 2 lines
+      126  }
+      127  ```
+      128  
+      129 -### In Docker                                                 
+      129 +### Remotely (HTTP + OAuth, for ChatGPT)                      
+      130  
+      131 +This serves the OAuth-protected HTTP endpoint publicly via ngr
+          +ok, so it can be                                              
+      132 +added to ChatGPT as a custom connector. You provide an identit
+          +y provider (the                                               
+      133 +authorization server) and its issuer / JWKS / audience values;
+          + the server only                                              
+      134 +verifies tokens.                                              
+      135 +                                                              
+      136 +```bash                                                       
+      137 +cp .env.example .env     # fill in Instagram + MCP_OAUTH_* + N
+          +GROK_AUTHTOKEN                                                
+      138 +./scripts/serve.sh       # docker compose up --build, prints t
+          +he public /mcp URL                                            
+      139 +```                                                           
+      140 +                                                              
+      141 +`scripts/serve.sh` wraps `docker compose up --build` (the `ser
+          +ver` +                                                        
+      142 +`ngrok` services in `docker-compose.yml`, built from `Dockerfi
+          +le.server`) and                                               
+      143 +prints the public endpoint. Then in ChatGPT, **add a custom co
+          +nnector** with:                                               
+      144 +                                                              
+      145 +- **URL** = the printed `https://<public-host>/mcp`           
+      146 +- **Authentication** = **OAuth** (not no-auth, not a static AP
+          +I key)                                                        
+      147 +                                                              
+      148 +ChatGPT runs the discovery/login flow against your IdP, and th
+          +e connector lists                                             
+      149 +every tool. Sanity checks:                                    
+      150 +                                                              
+      151 +```bash                                                       
+      152 +curl https://<public-host>/mcp                                
+          +   # -> 401 + WWW-Authenticate                                
+      153 +curl https://<public-host>/.well-known/oauth-protected-resourc
+          +e  # -> metadata naming your IdP                              
+      154 +```                                                           
+      155 +                                                              
+      156 +No secrets are baked into the images — everything comes from `
+          +.env` at run time,                                            
+      157 +and the ngrok container only ever sees its own authtoken.     
+      158 +                                                              
+      159 +### In Docker (dev image)                                     
+      160 +                                                              
+      161  A dev image (`Dockerfile`) bundles Python, `uv`, Node, and the
+            toolchain. Build
+      162  and open a shell with **only this folder** mounted to `/worksp
+           ace`:
+      163  
+     ...
+      168  
+      169  Inside the container you have the full gate and can run the se
+           rver exactly as
+      170  above. The volume mount means anything written under `/workspa
+           ce` lands back in
+      141 -this folder on your host.                                     
+      171 +this folder on your host. (This dev image is separate from `Do
+          +ckerfile.server`,                                             
+      172 +which is the lean production HTTP server image.)              
+      173  
+      174  ---
+      175  
+
+● Update(README.md)
+  ⎿  Added 1 line, removed 1 line
+      181  | `add_artist(handle)` | Validate the handle is a reachable **
+           professional** account, then track it. |
+      182  | `remove_artist(handle)` | Stop tracking a handle. |
+      183  | `get_feed(limit_per_artist=10)` | Merged, newest-first feed.
+            Metadata + permalinks only (no images). |
+      184 -| `next_inspiration()` | One **not-yet-seen** post, marked see
+          -n, with a rendered preview image. |                           
+      184 +| `next_inspiration()` | One **not-yet-seen** post, marked see
+          +n. Returns a ChatGPT **Apps SDK widget** result: handle/permal
+          +ink/caption in `structuredContent`, the ≤640px preview as a da
+          +ta URL in `_meta` (rendered by the widget, never shown to the 
+          +model). |                                                     
+      185  | `save_to_inspiration(post_id, notes=None)` | Bookmark a post
+            into the saved collection. |
+      186  | `list_inspiration()` | The saved collection, in save order. 
+           |
+      187  | `remove_from_inspiration(post_id)` | Remove a saved item. |
+
+● Update(README.md)
+  ⎿  Added 12 lines
+      233    description, so the calling assistant honours it.
+      234  - **No write access to Instagram.** No posting, commenting, or
+            messaging — this
+      235    is strictly read-and-curate.
+      236 +- **Single Instagram account.** The server queries one fixed B
+          +usiness/Creator                                               
+      237 +  account (from the environment). OAuth gates *who may call* t
+          +he server, not                                                
+      238 +  *which* Instagram identity is queried — there is no per-user
+          + IG account.                                                  
+      239 +- **No self-hosted authorization server.** The server is only 
+          +a resource server;                                            
+      240 +  it depends on an **external identity provider** for OAuth/PK
+          +CE, discovery, and                                            
+      241 +  token issuance. You supply the issuer, JWKS URL, and audienc
+          +e.                                                            
+      242 +- **Widget rendering is verified by eye.** Automated tests ass
+          +ert the widget                                                
+      243 +  *contract* (registered `ui://` resource, `_meta` output temp
+          +late, a valid                                                 
+      244 +  ≤640px JPEG data URL, no base64 in the model channels). That
+          + the image                                                    
+      245 +  actually **renders in ChatGPT**, and that the **OAuth login*
+          +* completes, are                                              
+      246 +  human checks (see [`REVIEW.md`](REVIEW.md)) — they cannot be
+          + confirmed by the                                             
+      247 +  test suite.                                                 
+      248  
+      249  ---
+      250  
+
+● Let me update the "Design decisions" image bullet to reflect the widget, and
+  add an OAuth bullet:
+
+● Update(README.md)
+  ⎿  Added 11 lines, removed 2 lines
+      211  - **Hermetic tests.** All Instagram HTTP is mocked with `respx
+           `; there are zero
+      212    live network calls in the test suite. (`mypy --strict`, `ruf
+           f`, and a 90%
+      213    coverage floor are enforced.)
+      214 -- **Images only where they earn their context.** Only `next_in
+          -spiration` returns                                            
+      215 -  a rendered image — the one-at-a-time conversational moment. 
+          -`get_feed` stays                                              
+      214 +- **Images only where they earn their context.** Only `next_in
+          +spiration` surfaces                                           
+      215 +  a preview — the one-at-a-time conversational moment. `get_fe
+          +ed` stays                                                     
+      216    metadata-only to keep the context window light.
+      217 +- **Widget, not image block, for ChatGPT.** ChatGPT does not r
+          +ender native MCP                                              
+      218 +  image blocks inline, so `next_inspiration` returns an Apps S
+          +DK widget: the                                                
+      219 +  base64 preview rides in `_meta` (rendered in the iframe), wh
+          +ile the model only                                            
+      220 +  ever sees the small `structuredContent` (handle/permalink/ca
+          +ption).                                                       
+      221 +- **Resource server, not auth server.** The server validates I
+          +dP-issued JWTs and                                            
+      222 +  serves the 401 + RFC 9728 metadata via the MCP SDK; issuance
+          + is delegated to an                                           
+      223 +  external identity provider. The verifier is IdP-agnostic (is
+          +suer + JWKS +                                                 
+      224 +  audience), and every JWKS fetch goes through an injected cli
+          +ent so tests stay                                             
+      225 +  hermetic.                                                   
+      226  
+      227  ---
+      228  
+
+● Now fill REVIEW.md's two bracketed sections (the only REVIEW edits per the
+  loop instruction):
+
+● Update(REVIEW.md)
+  ⎿  Added 57 lines, removed 5 lines
+       87  
+       88  ## Loop fills these in before stopping
+       89  
+       90 -**Chunks completed:** [ … ]                                   
+       90 +**Chunks completed:** All of Chunk 0 → Chunk 5, each its own g
+          +reen commit on                                                
+       91 +`feat/remote-app` (gate green: `ruff format --check`, `ruff ch
+          +eck`,                                                         
+       92 +`mypy --strict src`, and `pytest` at **100% coverage**, 137 te
+          +sts). `main`                                                  
+       93 +untouched; no `BLOCKERS.md`.                                  
+       94  
+       92 -**Anything I flagged for you:** [ … e.g. SDK version bump and 
+          -why; the exact                                                
+       93 -`window.openai` field the widget reads and where it was confir
+          -med; whether the                                              
+       94 -SDK served RFC 9728 metadata automatically or it had to be add
+          -ed by hand; the                                               
+       95 -IdP config values consumed; any deviation from PLAN.md and why
+          - … ]                                                          
+       95 +- **Chunk 0** — verified `mcp==1.27.2` exposes the auth + widg
+          +et API; wrote                                                 
+       96 +  `RECONCILIATION.md`. No source change.                      
+       97 +- **Chunk 1** — pure `select_transport(env)` helper + thin `ma
+          +in()` (stdio vs                                               
+       98 +  streamable-http with `MCP_HOST`/`MCP_PORT`).                
+       99 +- **Chunk 2** — `server/auth.py` JWKS-backed JWT verifier wire
+          +d via                                                         
+      100 +  `FastMCP(auth=…, token_verifier=…)`; new `core` config + `Au
+          +thError`/                                                     
+      101 +  `AuthConfigError`; `pyjwt[crypto]==2.13.0` promoted to a dir
+          +ect pin.                                                      
+      102 +- **Chunk 3** — `next_inspiration` returns an Apps SDK widget 
+          +result;                                                       
+      103 +  `server/widgets/inspiration.html` registered at `ui://widget
+          +/inspiration.html`                                            
+      104 +  (`text/html;profile=mcp-app`); image tests rewritten to the 
+          +widget contract.                                              
+      105 +- **Chunk 4** — `Dockerfile.server`, `docker-compose.yml` (ser
+          +ver + ngrok),                                                 
+      106 +  `scripts/serve.sh`, `.env.example` completed. Images are **n
+          +ot** built by the                                             
+      107 +  gate — bring them up via §3 above.                          
+      108 +- **Chunk 5** — README updated (remote/OAuth/widget + honest l
+          +imitations); this                                             
+      109 +  checklist; final core/server-separation audit (clean).      
+      110 +                                                              
+      111 +**Anything I flagged for you:**                               
+      112 +                                                              
+      113 +- **No SDK version bump.** `mcp==1.27.2` already had everythin
+          +g; the approved                                               
+      114 +  `mcp` bump was **declined**. `pyjwt[crypto]==2.13.0` was pro
+          +moted from                                                    
+      115 +  transitive to a direct pin (same version) — `uv.lock` update
+          +d.                                                            
+      116 +- **RFC 9728 metadata + 401 are automatic.** With `auth=AuthSe
+          +ttings(…)` +                                                  
+      117 +  `token_verifier=…`, the SDK mounts `/.well-known/oauth-prote
+          +cted-resource` and                                            
+      118 +  emits the `401` `WWW-Authenticate: Bearer … resource_metadat
+          +a=…` itself — no                                              
+      119 +  hand-rolled route/middleware (confirmed in Chunk 0, asserted
+          + by hermetic                                                  
+      120 +  tests in Chunk 2). Scope enforcement (`403 insufficient_scop
+          +e`) is likewise                                               
+      121 +  the SDK's; the verifier only reports the token's scopes.    
+      122 +- **Widget data bridge — please eyeball.** Re-confirmed agains
+          +t the live Apps SDK                                           
+      123 +  custom-ux docs (2026-06-15): the model-facing data is `windo
+          +w.openai.toolOutput`                                          
+      124 +  (= `structuredContent`), the mimeType is `text/html;profile=
+          +mcp-app`, and there                                           
+      125 +  is a `ui/notifications/tool-result` postMessage plus an `ope
+          +nai:set_globals`                                              
+      126 +  event. **The exact field that forwards the tool result `_met
+          +a` to the iframe is                                           
+      127 +  still not pinned in the public docs** (matches RESEARCH.md §
+          +1.4's open                                                    
+      128 +  question). The widget therefore reads the image data URL def
+          +ensively from                                                 
+      129 +  several candidate `_meta` accessors and from the postMessage
+          +. If the preview                                              
+      130 +  does not appear in §5's eyeball check, this is the first thi
+          +ng to inspect.                                                
+      131 +- **IdP config you must supply** (consumed as env, never inven
+          +ted by the build):                                            
+      132 +  `MCP_OAUTH_ISSUER`, `MCP_OAUTH_JWKS_URL`, `MCP_OAUTH_AUDIENC
+          +E` (= the public                                              
+      133 +  `…/mcp` URL, RFC 8707), `MCP_OAUTH_REQUIRED_SCOPES`, plus `N
+          +GROK_AUTHTOKEN`.                                              
+      134 +  The verifier assumes **RS256** JWTs (the OIDC default for Au
+          +th0/Stytch/WorkOS/                                            
+      135 +  Descope); a non-RS256 IdP would need a one-line algorithm ch
+          +ange in                                                       
+      136 +  `server/auth.py`.                                           
+      137 +- **No deviations from PLAN.md.** Audience uses the `…/mcp` fo
+          +rm from                                                       
+      138 +  `.env.example`, so the SDK serves the protected-resource met
+          +adata at                                                      
+      139 +  `/.well-known/oauth-protected-resource/mcp` (RFC 9728 §3.1 p
+          +ath insertion);                                               
+      140 +  the 401's `resource_metadata=` points there. `core` stays MC
+          +P/OAuth-free; the                                             
+      141 +  shared single-account `_services` singleton is unchanged as 
+          +planned.                                                      
+      142 +- **Inherited working-tree noise (not mine):** the session beg
+          +an with                                                       
+      143 +  uncommitted changes to `.gitignore` / `run-loop.sh` and the 
+          +Phase-1 docs                                                  
+      144 +  shown as moved into `build_artifacts/Phase 1/`. I left all o
+          +f it untouched and                                            
+      145 +  committed each chunk surgically (explicit `git add` of only 
+          +that chunk's                                                  
+      146 +  files), so none of it entered the phase-2 commits. You may w
+          +ant to review/clean                                           
+      147 +  that separately.                                            
+
+● Now append the final reconciliation note to RECONCILIATION.md (PLAN chunk 5):
+
+● Update(RECONCILIATION.md)
+  ⎿  Added 18 lines
+      55    account) is acceptable for this single-account demo; do not r
+          e-architect.
+      56  - Phase-1 governance artifacts are archived; the root phase-2 d
+          ocs govern. They
+      57    are not touched by this build.
+      58 +                                                               
+      59 +## Final reconciliation (after Chunk 5)                        
+      60 +                                                               
+      61 +All chunks landed as planned; the closing audit confirms:      
+      62 +                                                               
+      63 +- `core` (`src/tattoo_feed/` outside `server/`) has **no** MCP 
+         +/ FastMCP / OAuth /                                            
+      64 +  JWT imports. The only HTTP dependency there is the pre-existi
+         +ng injected                                                    
+      65 +  `httpx.Client` (Instagram/imaging), unchanged. New auth confi
+         +g is plain data                                                
+      66 +  (`AuthConfig` + loaders) and new errors are `TattooFeedError`
+         + subclasses.                                                   
+      67 +- `server/` holds the transport selection, the JWKS token verif
+         +ier, and the                                                   
+      68 +  widget wiring — no business logic. `next_inspiration` delegat
+         +es to the core                                                 
+      69 +  inspiration service exactly as before; only its *return shape
+         +* changed.                                                     
+      70 +- No stray `# type: ignore` in `src`; the single `# pragma: no 
+         +cover` surface is                                              
+      71 +  still `main()`. Gate green at 100% coverage (137 tests).     
+      72 +- Deps: `mcp` stayed `1.27.2` (bump declined); `pyjwt[crypto]==
+         +2.13.0` promoted                                               
+      73 +  to a direct pin; `uv.lock` matches `pyproject.toml`.         
+      74 +- The widget HTML asset is included in the built wheel (verifie
+         +d via                                                          
+      75 +  `uv build`), so the container install ships it.              
+
+● Now run the full gate one final time before committing Chunk 5:
+
+  Ran 1 shell command (ctrl+o to expand)
+
+● Gate green. Committing Chunk 5:
+
+  Committed 5 (ctrl+o to expand)
+
+● All six chunks (0→5) are committed, each a green commit on feat/remote-app;
+  main is untouched and there's no BLOCKERS.md. The remaining git status entries
+  are all the inherited/environmental working-tree noise I deliberately never
+  staged. Let me confirm my commits contain only intended files:
+
+  Ran 1 shell command (ctrl+o to expand)
+
+● The phase-2 build is complete. All six chunks landed exactly as planned.
+
+  Summary
+
+  Built phase 2 of tattoo-feed on feat/remote-app — six green commits (Chunk
+  0→5), main untouched, no BLOCKERS.md. Every chunk passed the full gate (ruff 
+  format --check, ruff check, mypy --strict src, pytest) at 100% coverage (137
+  tests, end state).
+
+  ┌───────┬──────────────────────────────────────────────────────────────────┐
+  │ Chunk │                           What landed                            │
+  ├───────┼──────────────────────────────────────────────────────────────────┤
+  │ 0     │ Verified mcp==1.27.2 exposes the auth + widget API → no SDK bump │
+  │       │  needed; wrote RECONCILIATION.md.                                │
+  ├───────┼──────────────────────────────────────────────────────────────────┤
+  │ 1     │ Pure select_transport(env) helper (stdio vs streamable-http),    │
+  │       │ thin main().                                                     │
+  ├───────┼──────────────────────────────────────────────────────────────────┤
+  │       │ server/auth.py JWKS-backed JWT verifier (sig/iss/aud/exp), wired │
+  │ 2     │  via FastMCP(auth=, token_verifier=); core auth config + typed   │
+  │       │ errors; pyjwt[crypto] promoted to a direct pin.                  │
+  ├───────┼──────────────────────────────────────────────────────────────────┤
+  │       │ next_inspiration returns an Apps SDK widget result;              │
+  │ 3     │ inspiration.html registered at ui://… with                       │
+  │       │ text/html;profile=mcp-app; image tests rewritten to the widget   │
+  │       │ contract.                                                        │
+  ├───────┼──────────────────────────────────────────────────────────────────┤
+  │       │ Dockerfile.server, docker-compose.yml (server + ngrok),          │
+  │ 4     │ scripts/serve.sh, .env.example — no secrets, gate stays          │
+  │       │ hermetic.                                                        │
+  ├───────┼──────────────────────────────────────────────────────────────────┤
+  │ 5     │ README (remote/OAuth/widget + honest limits), REVIEW checklist,  │
+  │       │ final reconciliation.                                            │
+  └───────┴──────────────────────────────────────────────────────────────────┘
+
+  Key findings flagged in REVIEW.md:
+  - No mcp bump — 1.27.2 already serves the RFC 9728 metadata + 401 challenge
+  and enforces scopes automatically once auth/token_verifier are wired (so no
+  hand-rolled metadata route).
+  - Widget data bridge re-verified against the live Apps SDK custom-ux docs
+  (matches RESEARCH.md). The exact _meta→iframe forwarding field is still
+  undocumented, so the widget reads it defensively — this is the thing to 
+  inspect if the image doesn't render in ChatGPT.
+  - Inherited working-tree noise (.gitignore/run-loop.sh, Phase-1 docs moved
+  into build_artifacts/Phase 1/, PROMPTS.md) was present before I started; I
+  left it all untouched and committed each chunk surgically, so none of it
+  entered the phase-2 commits.
+
+  As instructed, I am not declaring the build verified — the image rendering in
+  ChatGPT and the live OAuth login need your eyes (REVIEW.md §§4–5). The loop
+  ends here.
+
+  One note: this /loop had no interval (dynamic mode), but the task was a
+  bounded, sequential build that's now finished — there's nothing left to
+  self-pace, so I'm not scheduling a wakeup. If you'd like me to do anything
+  further (e.g. open a PR), just say so.
+✻ Baked for 31m 14s

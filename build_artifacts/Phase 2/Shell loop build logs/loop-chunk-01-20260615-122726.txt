@@ -1,0 +1,7 @@
+Warning: no stdin data received in 3s, proceeding without it. If piping from a slow command, redirect stdin explicitly: < /dev/null to skip, or wait longer.
+Chunk 1 is done and committed green. The changes:
+
+- **`server/app.py`**: Added `TransportConfig` dataclass with a `Literal["stdio", "streamable-http"]` transport field, plus `resolve_transport()` — a pure function that maps `MCP_TRANSPORT`/`MCP_HOST`/`MCP_PORT` env vars to transport config. `main()` now delegates to it and remains thin under `# pragma: no cover`.
+- **`tests/test_server_transport.py`**: Three hermetic tests covering stdio default, HTTP mode with custom host/port, and HTTP mode with env-absent defaults. The existing stdio boot test is unchanged.
+
+Gate result: 105 passed, 100% coverage, ruff and mypy clean.

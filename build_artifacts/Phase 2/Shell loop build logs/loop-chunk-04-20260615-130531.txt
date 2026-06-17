@@ -1,0 +1,9 @@
+Warning: no stdin data received in 3s, proceeding without it. If piping from a slow command, redirect stdin explicitly: < /dev/null to skip, or wait longer.
+Chunk 4 is committed. Here's what was delivered:
+
+- **`Dockerfile.server`**: Production image — source baked in, `uv sync --frozen --no-dev` for prod-only deps, `MCP_TRANSPORT=http` set, port 8000 exposed.
+- **`docker-compose.yml`**: `server` + `ngrok` services on a private bridge network; ngrok forwards to `server:8000` as plain TLS ingress; all secrets (IG creds, `MCP_AUTH_*` IdP config, `NGROK_AUTHTOKEN`) flow in from `.env`; named volume for persistent data.
+- **`.env.example`**: Corrected from `MCP_OAUTH_*` (pre-auth-code draft names) to the actual `MCP_AUTH_*` env var names used by `server/auth.py`; complete with all new IdP + ngrok keys and comments.
+- **`scripts/run-server.sh`**: Helper that checks `.env` exists, builds the image, and starts the stack; explains how to find the public URL via the ngrok inspector.
+
+No Python files touched → gate is entirely unchanged (127 passed, 100% coverage). Chunk 5 is next.

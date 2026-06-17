@@ -1,0 +1,8 @@
+Warning: no stdin data received in 3s, proceeding without it. If piping from a slow command, redirect stdin explicitly: < /dev/null to skip, or wait longer.
+Chunk 2 is committed. Gate passed green (all 4 checks, 123 tests, 100% coverage). The deliverables:
+
+- **`errors.py`**: `AuthError` added as a `TattooFeedError` subclass
+- **`server/auth.py`**: `AuthConfig` dataclass, `load_auth_config()` lazy env loader, `IdpTokenVerifier` implementing the `TokenVerifier` protocol — validates JWT signature (JWKS via injected async httpx client, cached), `iss`, `aud` (RFC 8707), `exp`
+- **`server/app.py`**: `main()` wires `FastMCP` auth settings when `MCP_AUTH_*` env vars are present in HTTP mode; SDK handles RFC 9728 metadata and `401`/`403` automatically
+- **`pyproject.toml`**: `pyjwt[crypto]==2.13.0` promoted to direct dependency (no version change)
+- **18 new hermetic tests**: RSA keypair generated in-process, JWKS mocked with `respx`, covers all JWT rejection paths plus 401/403/metadata via Starlette `TestClient`

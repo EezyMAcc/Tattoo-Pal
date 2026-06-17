@@ -1,0 +1,7 @@
+Warning: no stdin data received in 3s, proceeding without it. If piping from a slow command, redirect stdin explicitly: < /dev/null to skip, or wait longer.
+Chunk 5 is committed. All 6 chunks (0–5) are on `feat/remote-app`, gate is green at 127 tests / 100% coverage. 
+
+The deliverables for chunk 5 are complete:
+- **README.md** updated with the remote/OAuth/widget architecture, HTTP transport mode, ChatGPT connector setup (URL + auth = OAuth), identity provider guidance, ngrok stable domain recommendation, expanded limitations (single-account, IdP dependency, widget visual verification manual), and new env-var table for `MCP_AUTH_*` and `NGROK_AUTHTOKEN`.
+- **REVIEW.md** bracketed sections filled in: all chunks 0–5 listed, plus 7 flagged items for the human reviewer covering the SDK no-bump decision, automatic RFC 9728 metadata, the `window.openai` widget data paths, the `MCP_AUTH_AUDIENCE` = RFC 8707 audience binding, automatic scope enforcement, in-process JWKS caching, and the single-account limitation.
+- Final reconciliation confirmed: `core` stays MCP-free, `server/` holds no business logic, no stray `# type: ignore`, only `main()` is `pragma: no cover`.

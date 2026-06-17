@@ -1,0 +1,17 @@
+Warning: no stdin data received in 3s, proceeding without it. If piping from a slow command, redirect stdin explicitly: < /dev/null to skip, or wait longer.
+Chunk 3 is committed. Here's a summary of what was built:
+
+**Deliverables (all complete):**
+
+1. **`server/widgets/inspiration.html`** — minimal dependency-free widget that reads `_meta.imageDataUrl` via `window.openai.toolOutput` (primary) and a `ui/notifications/tool-result` postMessage fallback, rendering `<img>` + handle + caption + permalink.
+
+2. **Widget resource registered** at `ui://widget/inspiration.html` with `mimeType="text/html;profile=mcp-app"` via `@mcp.resource(...)` decorator.
+
+3. **`next_inspiration` reworked** to return `CallToolResult`:
+   - `_meta` carries both widget link fields (`openai/outputTemplate` + `ui.resourceUri`) and the JPEG preview as a `data:image/jpeg;base64,…` data URL (kept out of the model's token stream per RESEARCH.md §1.4)
+   - `structuredContent` carries handle/permalink/caption only (no base64) for the model to narrate
+   - `content` carries a text block the model can narrate
+
+4. **Tests updated** — `test_server_tools.py` and `test_image_rendering.py` rewritten to the new contract (at least as strict: still validates JPEG format, ≤640px long edge, and structurally valid base64; now also asserts widget URI, `_meta` fields, and absence of base64 in `structuredContent`). New `tests/test_server_widget.py` adds four hermetic widget-resource tests.
+
+Gate result: **127 tests, 100% coverage, ruff + mypy clean.**

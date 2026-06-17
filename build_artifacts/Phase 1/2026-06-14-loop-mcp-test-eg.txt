@@ -1,0 +1,2248 @@
+ ▐▛███▜▌   Claude Code v2.1.177
+▝▜█████▛▘  Opus 4.8 · Claude Pro
+  ▘▘ ▝▝    ~/Documents/tattoo-feed
+
+
+❯ You are setting up a containerised dev environment for an unattended          
+  overnight                                                                     
+  build. I am learning Docker, so explain each step in plain language as you do 
+  it                                                                            
+  — what each file does and why.                                                
+                                                                                
+  First, run `docker --version` and `docker info` to confirm Docker is          
+  installed                                                                     
+  and running. If it is not, stop and tell me what to fix.                      
+                                                                                
+  Then create, in this folder:                                                  
+                                                                                
+  1. A `Dockerfile` based on `python:3.12-slim` that also installs: git, curl,  
+     Node.js (for Claude Code), `uv` (Python package manager), and the Claude   
+  Code                                                                          
+     CLI (`npm install -g @anthropic-ai/claude-code`). Set the working          
+  directory                                                                     
+     to /workspace.                                                             
+  2. A `.dockerignore` excluding `.git`, `.env`, `data/`, `__pycache__`, and    
+     `*.pyc`.                                                                   
+  3. A `run-loop.sh` script that runs the container interactively, mounting     
+  ONLY                                                                          
+     this project folder to /workspace (`-v "$PWD":/workspace`), so the         
+  container                                                                     
+     can read and write this project but nothing else on my machine. Explain    
+  this                                                                          
+     isolation boundary to me explicitly.                                       
+                                                                                
+  Build the image (tag it `tattoo-feed-dev`) and confirm it builds cleanly.     
+                                                                                
+  Explain how I will authenticate Claude Code the first time inside the         
+  container,                                                                    
+  and how the volume mount lets the built code end up back in this folder.      
+                                                                                
+  Do NOT start the build loop and do NOT create any project source files yet —  
+  this step is only the container.                                              
+                                                                                
+
+⏺ I'll start by confirming Docker is installed and running, then build up the
+  container files one at a time, explaining each.
+
+⏺ Bash(docker --version && echo "---INFO---" && docker info)
+  ⎿  Docker version 29.5.3, build d1c06ef
+     ---INFO---
+     Client:
+     … +104 lines (ctrl+o to expand)
+
+⏺ ✅ Docker is installed and the daemon is running. Two things I checked:
+
+  - docker --version → Docker 29.5.3. That just confirms the client (the docker
+  command) exists.
+  - docker info → the Server: section printed without an error. This is the
+  important one: it means the docker command successfully talked to the Docker 
+  daemon (the background engine that actually builds/runs containers). If the
+  daemon were stopped, this would have errored with "Cannot connect to the
+  Docker daemon" and I'd have told you to start Docker Desktop. Note your
+  machine is aarch64 (Apple Silicon) — relevant later because images are
+  architecture-specific.
+
+  We're good to proceed. Let me create the three files.
+
+  ---
+  1. The Dockerfile
+
+  A Dockerfile is a recipe. Each line is a step that builds up an image — a
+  frozen snapshot of a Linux filesystem with everything pre-installed. You build
+  the image once; you can then launch many disposable containers from it
+  instantly.
+
+⏺ Write(Dockerfile)
+  ⎿  Wrote 51 lines to Dockerfile
+       2 # syntax=docker/dockerfile:1
+       3 # Dev environment for the tattoo-feed overnight build.
+         s image:hing Claude Code needs to build the project lives in thi
+       5 # git, curl, Node.js (Claude Code is a Node CLI), uv (Python dep
+       6 # Claude Code itself. The image is a frozen snapshot; the projec
+         t source is
+       8 # NOT baked in — it gets mounted at run time (see run-loop.sh).
+       9 # Base layer: a minimal Debian with Python 3.12 already installe
+      10 # "-slim" means stripped down (no build tools / docs) to keep th
+         e image small.
+     … +59 lines (ctrl+o to expand)
+
+⏺ Write(.dockerignore)
+  ⎿  Wrote 9 lines to .dockerignore
+        uild`, andre are never sent to the Docker daemon during `docker b
+      2 # never copied into the image. We don't COPY source into this ima
+        ge at all,
+        ll and fast,g this list tight means the "build context" stays sma
+      4 # and guarantees secrets/data can't accidentally be baked in late
+        r.
+      6 .env
+      7 data/
+      8 __pycache__/
+      9 *.pyc
+     … +2 lines (ctrl+o to expand)
+
+⏺ What just got created:
+
+  - Dockerfile — the recipe above. Note one design choice worth calling out: the
+  project source is not copied into the image (no COPY . .). The image holds
+  only tools. Your actual code lives on your Mac and gets attached at run time.
+  That's deliberate — it means rebuilding the image is rare, and your code is
+  never trapped inside a frozen image.
+  - .dockerignore — like .gitignore but for Docker. When you run docker build,
+  Docker first bundles up the folder (the "build context") and ships it to the
+  daemon. This file tells it to leave out .git, .env, data/, __pycache__, and
+  *.pyc — so secrets and junk never travel into the build and can't accidentally
+  end up in the image.
+
+  ---
+  3. The run-loop.sh script — and the isolation boundary
+
+⏺ Write(run-loop.sh)
+  ⎿  Wrote 30 lines to run-loop.sh
+       2 #!/usr/bin/env bash
+       3 # Launch the tattoo-feed dev container interactively.
+       5 # This does NOT start the overnight build. It just drops you int
+         o a shell
+       6 # inside the container, with this project folder mounted at /wor
+       7 #space.
+       8 # Isolation boundary (read this):
+          container.D":/workspace mounts ONLY the current folder into the
+      10 #   The container can read and write THIS folder and nothing els
+         e on your
+     … +30 lines (ctrl+o to expand)
+
+⏺ Bash(chmod +x /Users/tobyhuxtable/Documents/tattoo-feed/run-loop.sh && ls -l
+      /Users/tobyhuxtable/Documents/tattoo-feed/run-loop.sh)
+  ⎿  -rwxr-xr-x@ 1 tobyhuxtable  staff  1109 Jun 13 23:07 /Users/tobyhuxtab
+     le/Documents/tattoo-feed/run-loop.sh
+
+⏺ The isolation boundary, explained plainly. The key flag is -v 
+  "$PWD":/workspace:
+
+  - A volume mount (-v) glues a folder on your Mac to a path inside the
+  container. Here, your tattoo-feed folder ↔ /workspace. It's one shared folder,
+  not a copy — a file written on either side appears on the other instantly.
+  - Because it's the only mount, the container's view of your Mac is exactly 
+  this one folder. It cannot see ~/Documents, your other projects, SSH keys, or
+  system files. They simply don't exist inside the container.
+  - Everything else in the container (the OS, Python, Node) is the image's own
+  throwaway filesystem. With --rm, the container is deleted the moment it exits
+  — that scratch filesystem vanishes, but /workspace (your real folder) persists
+  because it lives on your Mac.
+
+  The other flags: -it = interactive terminal (a usable shell); -w /workspace =
+  start in that folder.
+
+  Now let me build the image.
+
+⏺ Bash(docker build -t tattoo-feed-dev .)
+  ⎿  #0 building with "desktop-linux" instance using docker driver
+
+     #1 [internal] load build definition from Dockerfile
+     … +477 lines (ctrl+o to expand)
+  ⎿  (timeout 10m)
+
+⏺ Build is running. Let me check the final result.
+
+  Read 1 file (ctrl+o to expand)
+
+⏺ The image built cleanly — all 6 steps completed and it was named
+  tattoo-feed-dev:latest. Let me verify the image exists and the tools are
+  actually inside it:
+
+⏺ Bash(docker images tattoo-feed-dev && echo "--- tool versions inside the image
+      ---" && docker run --rm tattoo-feed-dev bash -lc 'git --version; curl
+      --version | head…)
+  ⎿  IMAGE                    ID             DISK USAGE   CONTENT SIZE   EX
+     TRA
+     tattoo-feed-dev:latest   6c116906d0cc       1.19GB          320MB
+     … +10 lines (ctrl+o to expand)
+
+⏺ Everything is verified and working. Every tool you asked for is present inside
+  the image:
+
+  ┌─────────────┬──────────┬───────────────────────────────────┐
+  │    Tool     │ Version  │          Why it's there           │
+  ├─────────────┼──────────┼───────────────────────────────────┤
+  │ git         │ 2.47.3   │ version control for the build     │
+  ├─────────────┼──────────┼───────────────────────────────────┤
+  │ curl        │ 8.14.1   │ fetching installers / general use │
+  ├─────────────┼──────────┼───────────────────────────────────┤
+  │ Node.js     │ v20.20.2 │ runtime for Claude Code           │
+  ├─────────────┼──────────┼───────────────────────────────────┤
+  │ npm         │ 10.8.2   │ installed Claude Code             │
+  ├─────────────┼──────────┼───────────────────────────────────┤
+  │ uv          │ 0.11.21  │ Python package/dependency manager │
+  ├─────────────┼──────────┼───────────────────────────────────┤
+  │ Claude Code │ 2.1.177  │ the CLI that will run the build   │
+  └─────────────┴──────────┴───────────────────────────────────┘
+
+  The image is 1.19 GB on disk (320 MB compressed content) and tagged
+  tattoo-feed-dev:latest.
+
+  ---
+  How you'll authenticate Claude Code (first run inside the container)
+
+  The image ships the claude CLI but no credentials — that's correct, you never
+  bake secrets into an image. You log in inside a running container:
+
+  1. Start a shell: ./run-loop.sh
+  2. At the container prompt, run claude. On first launch it triggers a
+  browser-based OAuth login: it prints a URL, you open it on your Mac, approve,
+  and paste the code back. (Alternatively, if you have an Anthropic API key, you
+  can set ANTHROPIC_API_KEY — but the interactive login is the normal path.)
+
+  ⚠️ One caveat to be aware of: that login is stored in the container's home
+  directory (/root/.claude), which is part of the throwaway filesystem. Because
+  run-loop.sh uses --rm, when you exit the container the login is discarded and
+  you'd have to log in again next time. That's fine for a single overnight run
+  (log in, then kick off the build in the same session). If you later want the
+  login to persist across container restarts, we'd add a second mount for the
+  credentials directory — tell me when you're ready and I'll wire it in.
+
+  How the built code ends up back in this folder
+
+  This is the payoff of the volume mount. Inside the container, Claude Code does
+  all its work in /workspace. But /workspace is your tattoo-feed folder on the
+  Mac — the same bytes, not a copy. So:
+
+  - When Claude writes src/tattoo_feed/..., commits to the feat/auto-build
+  branch, or creates BLOCKERS.md, those files appear immediately in this folder
+  on your Mac.
+  - When the container exits and is deleted, none of that work is lost — it was
+  never inside the container's disposable layer; it was always on your host via
+  the mount.
+
+  In short: the container is disposable, your code is permanent, and the mount
+  is the one bridge between them.
+
+  ---
+  As instructed, I have not started the build loop and not created any project
+  source files. This step set up only the container:
+
+  - Dockerfile — the image recipe (tools only, no source)
+  - .dockerignore — keeps the build context clean and secret-free
+  - run-loop.sh — launches an isolated container with only this folder mounted
+  - Image tattoo-feed-dev built and verified
+
+  When you're ready for the next step (kicking off the overnight build, or
+  making the Claude login persistent), just say so.
+
+✻ Churned for 2m 15s
+
+❯ /loop Build this project by following PLAN.md exactly, governed by the rules  
+in                                                                              
+CLAUDE.md. Both files are in this directory — read them in full before          
+starting.                                                                       
+                                                                                
+Work ONE chunk at a time, in order (Chunk 0 → Chunk 8). For each chunk:         
+implement only what that chunk specifies, then run the full gate from CLAUDE.md 
+§4. When the gate is green, make one Conventional Commit for the chunk on the   
+`feat/auto-build` branch, then move to the next chunk.                          
+                                                                                
+Hard rules (from CLAUDE.md, restated): never edit/weaken tests or tooling       
+config                                                                          
+to pass a gate; never make a live network call (all HTTP is mocked with respx); 
+never commit secrets; never touch `main`. If a chunk's gate cannot pass after 3 
+honest attempts, STOP, write BLOCKERS.md, and leave the repo on the last green  
+commit.                                                                         
+                                                                                
+After the final chunk (image rendering), STOP. A REVIEW.md template already     
+exists in this directory — do not overwrite it. Only fill in its two bracketed  
+sections at the bottom: the chunks completed, and anything you flagged for me.  
+Do not declare the project verified — image rendering needs my eyes.            
+
+⏺ This is dynamic self-paced mode — I'll build chunk by chunk. Let me start by
+  reading the governing files in full.
+
+  Read 1 file (ctrl+o to expand)
+
+⏺ Bash(ls -la /Users/tobyhuxtable/Documents/tattoo-feed/ && echo "--- REVIEW.md?
+      ---" && cat /Users/tobyhuxtable/Documents/tattoo-feed/REVIEW.md
+      2>/dev/null || echo "N…)
+  ⎿  total 72
+     drwxr-xr-x   9 tobyhuxtable  staff    288 Jun 13 23:10 .
+     drwx------+ 21 tobyhuxtable  staff    672 Jun 13 23:04 ..
+     … +99 lines (ctrl+o to expand)
+
+⏺ I've read both PLAN.md and CLAUDE.md in full, and confirmed REVIEW.md already
+  exists (I'll only fill its two bracketed sections at the very end). I'm on
+  feat/auto-build.
+
+  This is a long sequential build (Chunk 0→8), not event-gated work — so I'll
+  work through chunks continuously this turn and use a self-paced wakeup only if
+  I need to continue across context. The gate must run inside the container, so
+  I'll start a persistent container and docker exec into it (keeps the uv cache
+  warm between gate runs).
+
+⏺ Bash(cd /Users/tobyhuxtable/Documents/tattoo-feed
+      # Start a persistent build container with the project mounted…)  ⎿  0960c03f55b36ebaecb84f1d1b94b017638fbf20ae7d7af35d9f1932776e1052
+     --- verify tools inside ---
+     uv 0.11.21 (aarch64-unknown-linux-gnu)
+     … +2 lines (ctrl+o to expand)
+
+⏺ Container is ready with the toolchain. Now Chunk 0 — Scaffold & toolchain. Let
+  me create the skeleton, then resolve/pin dependencies via uv inside the
+  container.
+
+⏺ Bash(cd /Users/tobyhuxtable/Documents/tattoo-feed
+      mkdir -p src/tattoo_feed/repositories src/tattoo_feed/graph
+      src/tattoo_feed/services src/tattoo_feed/server tests/f…)
+  ⎿  created dirs
+
+⏺ Write(pyproject.toml)
+  ⎿  Wrote 52 lines to pyproject.toml
+      1 [project]
+      2 name = "tattoo-feed"
+      3 version = "0.1.0"
+      4 description = "MCP server for browsing and curating Instagram tat
+        too-artist posts via Business Discovery."
+      5 readme = "README.md"
+      6 requires-python = "==3.12.*"
+      7 license = { text = "MIT" }
+      8 authors = [{ name = "Toby Huxtable" }]
+      9 dependencies = []
+     … +43 lines (ctrl+o to expand)
+
+⏺ Write(src/tattoo_feed/__init__.py)
+  ⎿  Wrote 8 lines to src/tattoo_feed/__init__.py
+        t posts.o Feed: an MCP server for curating Instagram tattoo-artis
+      2 
+      3 The package is split into a pure ``core`` (models, errors, reposi
+        tories, the
+      4 Graph client, imaging, and services) and a thin ``server`` adapte
+        r that exposes
+      5 the core as MCP tools. See ``PLAN.md`` for the full architecture.
+      6 """
+      7 
+      8 __version__ = "0.1.0"
+     … +1 line (ctrl+o to expand)
+
+⏺ Write(src/tattoo_feed/repositories/__init__.py)
+  ⎿  Wrote 1 lines to src/tattoo_feed/repositories/__init__.py
+      1 """Persistence layer: repository interfaces and JSON-file impleme
+        ntations."""
+
+⏺ Write(src/tattoo_feed/graph/__init__.py)
+  ⎿  Wrote 1 lines to src/tattoo_feed/graph/__init__.py
+      1 """Instagram Graph API access (Business Discovery)."""
+
+⏺ Write(src/tattoo_feed/services/__init__.py)
+  ⎿  Wrote 1 lines to src/tattoo_feed/services/__init__.py
+      1 """Core services orchestrating repositories, the Graph client, an
+        d imaging."""
+
+⏺ Write(src/tattoo_feed/server/__init__.py)
+  ⎿  Wrote 1 lines to src/tattoo_feed/server/__init__.py
+      1 """Thin FastMCP adapter exposing the core services as MCP tools."
+        ""
+
+⏺ Write(tests/test_smoke.py)
+  ⎿  Wrote 7 lines to tests/test_smoke.py
+      1 """Smoke test proving the package imports and exposes a version."
+        ""
+      2 
+      3 import tattoo_feed
+      4 
+      5 
+      6 def test_package_has_version() -> None:
+      7     assert tattoo_feed.__version__ == "0.1.0"
+
+⏺ Now the remaining Chunk 0 deliverables: .gitignore, .env.example, LICENSE,
+  README.md skeleton, and CI workflow.
+
+⏺ Write(.gitignore)
+  ⎿  Wrote 20 lines to .gitignore
+       1 # Secrets and runtime data — never commit these
+       2 .env
+       3 data/
+       4 
+       5 # Python
+       6 __pycache__/
+       7 *.py[cod]
+       8 *.egg-info/
+       9 .eggs/
+      10 build/
+     … +10 lines (ctrl+o to expand)
+
+⏺ Write(.env.example)
+  ⎿  Wrote 9 lines to .env.example
+        s gitignored.ile to `.env` and fill in your real values. `.env` i
+      2 #
+      3 # A long-lived Instagram Graph API access token for a user/app th
+        at has
+      4 # permission to call the Business Discovery API.
+      6 IG_ACCESS_TOKEN=your-long-lived-access-token-here
+      7 # The Instagram Business/Creator account ID that owns the token a
+        nd acts as the
+      8 # querying account for Business Discovery lookups.
+      9 IG_USER_ID=your-instagram-business-user-id-here
+     … +2 lines (ctrl+o to expand)
+
+⏺ Write(LICENSE)
+  ⎿  Wrote 21 lines to LICENSE
+       2 MIT License
+       3 Copyright (c) 2026 Toby Huxtable
+       5 Permission is hereby granted, free of charge, to any person obta
+         ining a copy
+         re"), to dealare and associated documentation files (the "Softwa
+       7 in the Software without restriction, including without limitatio
+       8 to use, copy, modify, merge, publish, distribute, sublicense, an
+         d/or sell
+         re iss of the Software, and to permit persons to whom the Softwa
+      10 furnished to do so, subject to the following conditions:
+     … +23 lines (ctrl+o to expand)
+
+⏺ Write(README.md)
+  ⎿  Wrote 29 lines to README.md
+       2 # Tattoo Feed
+       3 An MCP (Model Context Protocol) server that lets an LLM client b
+         rowse and curate
+         nstagram's a hand-picked list of Instagram tattoo artists, via I
+       5 Business Discovery API.
+       6 
+         e build plan andE — fleshed out in Chunk 7. See `PLAN.md` for th
+       8 > `CLAUDE.md` for the operating rules.
+       9 
+      10 ## Status
+     … +26 lines (ctrl+o to expand)
+
+⏺ Write(.github/workflows/ci.yml)
+  ⎿  Wrote 34 lines to .github/workflows/ci.yml
+       1 name: CI
+       2 
+       3 on:
+       4   push:
+       5     branches: ["**"]
+       6   pull_request:
+       7 
+       8 jobs:
+       9   gate:
+      10     runs-on: ubuntu-latest
+     … +26 lines (ctrl+o to expand)
+
+⏺ Now resolve and pin dependencies inside the container:
+
+⏺ Bash(cd /Users/tobyhuxtable/Documents/tattoo-feed
+      docker exec tattoo-build bash -lc '…)
+  ⎿  Using CPython 3.12.13 interpreter at: /usr/local/bin/python3
+     Creating virtual environment at: .venv
+     Resolved 33 packages in 552ms
+     … +109 lines (ctrl+o to expand)
+  ⎿  (timeout 5m)
+
+⏺ Dependencies resolved. Now I'll pin every dependency to an exact == version
+  per CLAUDE.md §8.
+
+⏺ Update(pyproject.toml)
+  ⎿  Added 4 lines, removed 4 lines
+       7  license = { text = "MIT" }
+       8  authors = [{ name = "Toby Huxtable" }]
+       9  dependencies = [
+      10 -    "httpx>=0.28.1",                                           
+      11 -    "mcp>=1.27.2",                                             
+      12 -    "pillow>=12.2.0",                                          
+      13 -    "pydantic>=2.13.4",                                        
+      10 +    "httpx==0.28.1",                                           
+      11 +    "mcp==1.27.2",                                             
+      12 +    "pillow==12.2.0",                                          
+      13 +    "pydantic==2.13.4",                                        
+      14  ]
+      15  
+      16  [build-system]
+
+⏺ Update(pyproject.toml)
+  ⎿  Added 6 lines, removed 6 lines
+      58  
+      59  [dependency-groups]
+      60  dev = [
+      61 -    "mypy>=2.1.0",                                             
+      62 -    "pytest>=9.1.0",                                           
+      63 -    "pytest-asyncio>=1.4.0",                                   
+      64 -    "pytest-cov>=7.1.0",                                       
+      65 -    "respx>=0.23.1",                                           
+      66 -    "ruff>=0.15.17",                                           
+      61 +    "mypy==2.1.0",                                             
+      62 +    "pytest==9.1.0",                                           
+      63 +    "pytest-asyncio==1.4.0",                                   
+      64 +    "pytest-cov==7.1.0",                                       
+      65 +    "respx==0.23.1",                                           
+      66 +    "ruff==0.15.17",                                           
+      67  ]
+⏺ Now re-lock and run the full Chunk 0 gate inside the container:
+
+⏺ Bash(cd /Users/tobyhuxtable/Documents/tattoo-feed
+      docker exec tattoo-build bash -lc '…)
+  ⎿  Resolved 48 packages in 18ms
+        Building tattoo-feed @ file:///workspace
+           Built tattoo-feed @ file:///workspace
+     … +29 lines (ctrl+o to expand)
+
+⏺ Chunk 0 gate is fully green (ruff format ✓, ruff lint ✓, mypy strict ✓, pytest
+  100% coverage ✓). Let me commit. I'll first make a preliminary chore commit
+  for the governance/Docker harness files (so chunk commits stay pure), then the
+  Chunk 0 commit.
+
+⏺ Bash(cd /Users/tobyhuxtable/Documents/tattoo-feed
+      git status --short…)
+  ⎿  ?? .dockerignore
+     ?? .env.example
+     ?? .github/
+     … +15 lines (ctrl+o to expand)
+
+⏺ Bash(cd /Users/tobyhuxtable/Documents/tattoo-feed
+      git add CLAUDE.md PLAN.md REVIEW.md Dockerfile .dockerignore run-loop.sh…)
+  ⎿  --- now chunk 0 ---
+     === log ===
+     0e37558 feat(scaffold): toolchain, typed skeleton, and CI gate  [chunk
+     … +4 lines (ctrl+o to expand)
+
+⏺ Working tree clean, Chunk 0 done. Now Chunk 1 — Domain models & errors.
+
+⏺ Write(src/tattoo_feed/errors.py)
+  ⎿  Wrote 55 lines to src/tattoo_feed/errors.py
+      2 """Typed error hierarchy for the tattoo_feed core.
+      3 Every failure that crosses a module boundary is one of these. Not
+        hing in
+        branch onraises a bare :class:`Exception`; callers can therefore 
+      5 intent (token expired vs. account missing vs. rate limited) rathe
+        r than on
+         clientmatching, and the ``server`` layer can map each to a clean
+      7 message.
+      8 """
+      9 
+     … +59 lines (ctrl+o to expand)
+
+⏺ Write(src/tattoo_feed/models.py)
+  ⎿  Wrote 157 lines to src/tattoo_feed/models.py
+      2 """Pydantic v2 domain models.
+      3 These are the value objects that cross every boundary in the syst
+        em: what the
+      4 Graph client returns, what the repositories persist, and what the
+         services
+        ehave ask to the MCP layer. They are frozen (immutable) so they b
+      6 plain values — safe to share, compare, and hash.
+      7 """
+      8 
+      9 from __future__ import annotations
+     … +159 lines (ctrl+o to expand)
+
+⏺ Now the tests for Chunk 1:
+
+⏺ Write(tests/test_errors.py)
+  ⎿  Wrote 47 lines to tests/test_errors.py
+       1 """Tests for the typed error hierarchy."""
+       2 
+       3 import pytest
+       4 
+       5 from tattoo_feed.errors import (
+       6     AccountNotFoundError,
+       7     ImageProcessingError,
+       8     NotAProfessionalAccountError,
+       9     RateLimitedError,
+      10     RepositoryError,
+     … +38 lines (ctrl+o to expand)
+
+⏺ Write(tests/test_models.py)
+  ⎿  Wrote 121 lines to tests/test_models.py
+       1 """Tests for the Pydantic domain models."""
+       2 
+       3 from datetime import UTC, datetime
+       4 
+       5 import pytest
+       6 from pydantic import ValidationError
+       7 
+       8 from tattoo_feed.models import (
+       9     Artist,
+      10     InspirationItem,
+     … +116 lines (ctrl+o to expand)
+
+⏺ Bash(cd /Users/tobyhuxtable/Documents/tattoo-feed
+      docker exec -e UV_LINK_MODE=copy tattoo-build bash -lc '…)
+  ⎿  Error: Exit code 1
+     ===== ruff format =====
+     Would reformat: tests/test_models.py
+     1 file would be reformatted, 9 files already formatted
+
+⏺ Formatter wants to reformat the test. That's allowed — formatting code (not
+  config). Let me apply it.
+
+⏺ Bash(cd /Users/tobyhuxtable/Documents/tattoo-feed
+      docker exec -e UV_LINK_MODE=copy tattoo-build bash -lc '…)
+  ⎿  Error: Exit code 1
+     1 file reformatted, 9 files left unchanged
+     ===== ruff format check =====
+     10 files already formatted
+     ===== ruff check =====
+     UP042 Class MediaType inherits from both `str` and `enum.Enum`
+       --> src/tattoo_feed/models.py:18:7
+        |
+     18 | class MediaType(str, Enum):
+        |       ^^^^^^^^^
+     … +6 lines (ctrl+o to expand)
+
+⏺ Good catch from the linter — Python 3.12 has enum.StrEnum. Let me switch to it
+  (cleaner than suppressing).
+
+⏺ Update(src/tattoo_feed/models.py)
+  ⎿  Added 1 line, removed 1 line
+       9  from __future__ import annotations
+      10  
+      11  from datetime import UTC, datetime
+      12 -from enum import Enum                                          
+      12 +from enum import StrEnum                                       
+      13  from uuid import uuid4
+      14  
+      15  from pydantic import BaseModel, ConfigDict, Field, field_valida
+          tor
+
+⏺ Update(src/tattoo_feed/models.py)
+  ⎿  Added 1 line, removed 1 line
+      15  from pydantic import BaseModel, ConfigDict, Field, field_valida
+          tor
+      16  
+      17  
+      18 -class MediaType(str, Enum):                                    
+      18 +class MediaType(StrEnum):                                      
+      19      """The kinds of post that may enter the system.
+      20  
+      21      Videos are filtered out at the Graph-client layer and so ne
+          ver become a
+
+⏺ Bash(cd /Users/tobyhuxtable/Documents/tattoo-feed
+      docker exec -e UV_LINK_MODE=copy tattoo-build bash -lc '…)
+  ⎿  ===== ruff format check =====
+     10 files already formatted
+     ===== ruff check =====
+     … +22 lines (ctrl+o to expand)
+
+⏺ Chunk 1 green (100% coverage). Committing.
+
+⏺ Bash(cd /Users/tobyhuxtable/Documents/tattoo-feed
+      git add src/tattoo_feed/models.py src/tattoo_feed/errors.py
+      tests/test_models.py tests/test_errors.py…)
+  ⎿  cbeb294 feat(core): domain models and typed error hierarchy  [chunk 1]
+     0e37558 feat(scaffold): toolchain, typed skeleton, and CI gate  [chunk
+      0]
+     0ba1195 chore: add governance docs and Docker dev harness
+
+⏺ Chunk 1 committed. Now Chunk 2 — Repository layer: an abstract Repository ABC
+  plus JSON-file implementations (artists, inspiration, preferences, seen-set)
+  with atomic writes.
+⏺ Write(src/tattoo_feed/repositories/base.py)
+  ⎿  Wrote 64 lines to src/tattoo_feed/repositories/base.py
+      2 """The abstract repository contract.
+      3 A :class:`Repository` is a persistent collection of one model typ
+        e, keyed by a
+      4 stable string. Keeping this an ABC (rather than a concrete class)
+         lets a future
+        ing thean alternative backend (SQLite, say) swap in without touch
+      6 services that depend on it.
+      7 """
+      8 
+      9 from __future__ import annotations
+     … +61 lines (ctrl+o to expand)
+
+⏺ Write(src/tattoo_feed/repositories/json_repo.py)
+  ⎿  Wrote 207 lines to src/tattoo_feed/repositories/json_repo.py
+       2 """JSON-file repository implementations with atomic writes.
+       3 Each store is a single JSON file holding a list (artists, inspir
+       4 preferences) or a list of ids (the seen-set). Writes are atomic:
+          we write a
+       5 sibling temp file and ``os.replace`` it over the target, so a cr
+       6 can never leave a half-written or truncated store — the reader s
+         ees either the
+       8 """ file or the new one, never a corrupt one.
+       9 
+      10 from __future__ import annotations
+     … +234 lines (ctrl+o to expand)
+
+⏺ Now comprehensive tests for the repository layer:
+
+⏺ Write(tests/test_repositories.py)
+  ⎿  Wrote 27 lines to tests/test_repositories.py
+       1 """Tests for the JSON-file repositories and atomic writes."""
+       2 
+       3 from __future__ import annotations
+       4 
+       5 import json
+       6 import os
+       7 from datetime import UTC, datetime
+       8 from pathlib import Path
+       9 
+      10 import pytest
+     … +19 lines (ctrl+o to expand)
+
+⏺ I made an import error there — let me rewrite that test file cleanly.
+
+⏺ Write(tests/test_repositories.py)
+  ⎿  Added 153 lines, removed 2 lines
+      3  from __future__ import annotations
+      4  
+      5  import json
+      6 -import os                                                       
+      6  from datetime import UTC, datetime
+      7  from pathlib import Path
+      8  
+     ...
+      11  from tattoo_feed.errors import RepositoryError
+      12  from tattoo_feed.models import Artist, InspirationItem, Prefere
+          nce
+      13  from tattoo_feed.repositories import json_repo
+      15 -from tattoo_feed.repositories.artists import _make  # noqa: F40
+         -1  # placeholder guard                                         
+      14 +from tattoo_feed.repositories.json_repo import (               
+      15 +    ArtistRepository,                                          
+      16 +    InspirationRepository,                                     
+      17 +    PreferenceRepository,                                      
+      18 +    SeenSetRepository,                                         
+      19 +)                                                              
+      20  
+      21  TS = datetime(2024, 5, 6, 7, 8, 9, tzinfo=UTC)
+      22  
+     ...
+       29          permalink="https://instagram.com/p/abc",
+       30          timestamp=TS,
+       31      )
+       32 +                                                              
+       33 +                                                              
+       34 +# --- Artist repository (representative of the generic model r
+          +epo) ----------                                               
+       35 +                                                              
+       36 +                                                              
+       37 +def test_add_list_get_and_persistence(tmp_path: Path) -> None:
+       38 +    path = tmp_path / "artists.json"                          
+       39 +    repo = ArtistRepository(path)                             
+       40 +                                                              
+       41 +    assert repo.list() == []  # absent file reads as empty    
+       42 +    repo.add(Artist(handle="alice"))                          
+       43 +    repo.add(Artist(handle="bob"))                            
+       44 +                                                              
+       45 +    # A fresh instance reads the same file back — true persist
+          +ence.                                                         
+       46 +    reloaded = ArtistRepository(path)                         
+       47 +    handles = [a.handle for a in reloaded.list()]             
+       48 +    assert handles == ["alice", "bob"]                        
+       49 +    assert reloaded.get("alice") is not None                  
+       50 +    assert reloaded.get("missing") is None                    
+       51 +                                                              
+       52 +                                                              
+       53 +def test_add_replaces_in_place_preserving_order(tmp_path: Path
+          +) -> None:                                                    
+       54 +    repo = ArtistRepository(tmp_path / "artists.json")        
+       55 +    repo.add(Artist(handle="alice"))                          
+       56 +    repo.add(Artist(handle="bob"))                            
+       57 +    repo.add(Artist(handle="alice", ig_user_id="123"))  # upse
+          +rt                                                            
+       58 +                                                              
+       59 +    artists = repo.list()                                     
+       60 +    assert [a.handle for a in artists] == ["alice", "bob"]    
+       61 +    assert artists[0].ig_user_id == "123"                     
+       62 +                                                              
+       63 +                                                              
+       64 +def test_remove_returns_true_then_false(tmp_path: Path) -> Non
+          +e:                                                            
+       65 +    repo = ArtistRepository(tmp_path / "artists.json")        
+       66 +    repo.add(Artist(handle="alice"))                          
+       67 +    assert repo.remove("alice") is True                       
+       68 +    assert repo.remove("alice") is False                      
+       69 +    assert repo.list() == []                                  
+       70 +                                                              
+       71 +                                                              
+       72 +def test_inspiration_preserves_save_order(tmp_path: Path) -> N
+          +one:                                                          
+       73 +    repo = InspirationRepository(tmp_path / "insp.json")      
+       74 +    repo.add(_item("p1"))                                     
+       75 +    repo.add(_item("p2"))                                     
+       76 +    repo.add(_item("p3"))                                     
+       77 +    assert [i.post_id for i in repo.list()] == ["p1", "p2", "p
+          +3"]                                                           
+       78 +    repo.remove("p2")                                         
+       79 +    assert [i.post_id for i in repo.list()] == ["p1", "p3"]   
+       80 +                                                              
+       81 +                                                              
+       82 +def test_preference_round_trips(tmp_path: Path) -> None:      
+       83 +    repo = PreferenceRepository(tmp_path / "prefs.json")      
+       84 +    pref = Preference(observation="bold blackwork")           
+       85 +    repo.add(pref)                                            
+       86 +    assert repo.get(pref.id) == pref                          
+       87 +                                                              
+       88 +                                                              
+       89 +# --- Error mapping ------------------------------------------
+          +---------------                                               
+       90 +                                                              
+       91 +                                                              
+       92 +def test_unreadable_corrupt_json_raises_repository_error(tmp_p
+          +ath: Path) -> None:                                           
+       93 +    path = tmp_path / "artists.json"                          
+       94 +    path.write_text("{ not json", encoding="utf-8")           
+       95 +    with pytest.raises(RepositoryError):                      
+       96 +        ArtistRepository(path).list()                         
+       97 +                                                              
+       98 +                                                              
+       99 +def test_non_list_json_raises_repository_error(tmp_path: Path)
+          + -> None:                                                     
+      100 +    path = tmp_path / "artists.json"                          
+      101 +    path.write_text('{"handle": "alice"}', encoding="utf-8")  
+      102 +    with pytest.raises(RepositoryError):                      
+      103 +        ArtistRepository(path).list()                         
+      104 +                                                              
+      105 +                                                              
+      106 +def test_invalid_model_data_raises_repository_error(tmp_path: 
+          +Path) -> None:                                                
+      107 +    path = tmp_path / "artists.json"                          
+      108 +    # Valid JSON list, but the row is not a valid Artist (miss
+          +ing handle).                                                  
+      109 +    path.write_text(json.dumps([{"ig_user_id": "x"}]), encodin
+          +g="utf-8")                                                    
+      110 +    with pytest.raises(RepositoryError):                      
+      111 +        ArtistRepository(path).list()                         
+      112 +                                                              
+      113 +                                                              
+      114 +# --- Atomicity ----------------------------------------------
+          +---------------                                               
+      115 +                                                              
+      116 +                                                              
+      117 +def test_write_is_atomic_original_survives_failed_replace(    
+      118 +    tmp_path: Path, monkeypatch: pytest.MonkeyPatch           
+      119 +) -> None:                                                    
+      120 +    path = tmp_path / "artists.json"                          
+      121 +    repo = ArtistRepository(path)                             
+      122 +    repo.add(Artist(handle="alice"))  # establish a good file 
+      123 +    good_contents = path.read_text(encoding="utf-8")          
+      124 +                                                              
+      125 +    def boom(*_args: object, **_kwargs: object) -> None:      
+      126 +        raise OSError("disk full")                            
+      127 +                                                              
+      128 +    monkeypatch.setattr(json_repo.os, "replace", boom)        
+      129 +                                                              
+      130 +    with pytest.raises(RepositoryError):                      
+      131 +        repo.add(Artist(handle="bob"))                        
+      132 +                                                              
+      133 +    # Original file is intact and no temp debris is left behin
+          +d.                                                            
+      134 +    assert path.read_text(encoding="utf-8") == good_contents  
+      135 +    leftovers = [p.name for p in tmp_path.iterdir() if p.name 
+          +!= "artists.json"]                                            
+      136 +    assert leftovers == []                                    
+      137 +                                                              
+      138 +                                                              
+      139 +def test_atomic_write_creates_missing_parent_dirs(tmp_path: Pa
+          +th) -> None:                                                  
+      140 +    nested = tmp_path / "deep" / "nested" / "artists.json"    
+      141 +    repo = ArtistRepository(nested)                           
+      142 +    repo.add(Artist(handle="alice"))                          
+      143 +    assert nested.exists()                                    
+      144 +                                                              
+      145 +                                                              
+      146 +# --- Seen-set -----------------------------------------------
+          +---------------                                               
+      147 +                                                              
+      148 +                                                              
+      149 +def test_seen_set_add_contains_clear_and_persist(tmp_path: Pat
+          +h) -> None:                                                   
+      150 +    path = tmp_path / "seen.json"                             
+      151 +    seen = SeenSetRepository(path)                            
+      152 +                                                              
+      153 +    assert seen.all() == set()                                
+      154 +    assert seen.contains("p1") is False                       
+      155 +    seen.add("p1")                                            
+      156 +    seen.add("p1")  # idempotent                              
+      157 +    seen.add("p2")                                            
+      158 +                                                              
+      159 +    reloaded = SeenSetRepository(path)                        
+      160 +    assert reloaded.all() == {"p1", "p2"}                     
+      161 +    assert reloaded.contains("p1") is True                    
+      162 +                                                              
+      163 +    reloaded.clear()                                          
+      164 +    assert SeenSetRepository(path).all() == set()             
+      165 +                                                              
+      166 +                                                              
+      167 +def test_seen_set_rejects_malformed_store(tmp_path: Path) -> N
+          +one:                                                          
+      168 +    path = tmp_path / "seen.json"                             
+      169 +    path.write_text(json.dumps([1, 2, 3]), encoding="utf-8")  
+          +# not strings                                                 
+      170 +    with pytest.raises(RepositoryError):                      
+      171 +        SeenSetRepository(path).all()                         
+      172 +                                                              
+      173 +                                                              
+      174 +def test_seen_set_rejects_unreadable_store(tmp_path: Path) -> 
+          +None:                                                         
+      175 +    path = tmp_path / "seen.json"                             
+      176 +    path.write_text("not json at all", encoding="utf-8")      
+      177 +    with pytest.raises(RepositoryError):                      
+      178 +        SeenSetRepository(path).all()                         
+
+⏺ Bash(cd /Users/tobyhuxtable/Documents/tattoo-feed
+      docker exec -e UV_LINK_MODE=copy tattoo-build bash -lc '…)
+  ⎿  Error: Exit code 1
+     1 file reformatted, 12 files left unchanged
+     ===== ruff format check =====
+     13 files already formatted
+     ===== ruff check =====
+     UP046 Generic class `Repository` uses `Generic` subclass instead of type 
+     parameters
+       --> src/tattoo_feed/repositories/base.py:19:23
+        |
+     19 | class Repository(ABC, Generic[T]):
+        |                       ^^^^^^^^^^
+     … +6 lines (ctrl+o to expand)
+
+⏺ ruff wants PEP 695 type-parameter syntax (Python 3.12). Cleaner — let me adopt
+  it in both files.
+
+⏺ Update(src/tattoo_feed/repositories/base.py)
+  ⎿  Added 1 line, removed 4 lines
+       9  from __future__ import annotations
+      10  
+      11  from abc import ABC, abstractmethod
+      12 -from typing import Generic, TypeVar                            
+      12  
+      13  from pydantic import BaseModel
+      14  
+      16 -T = TypeVar("T", bound=BaseModel)                              
+      15  
+      18 -                                                               
+      19 -class Repository(ABC, Generic[T]):                             
+      16 +class Repository[T: BaseModel](ABC):                           
+      17      """A persistent, key-addressable collection of a single mod
+          el type."""
+      18  
+      19      @abstractmethod
+
+⏺ Update(src/tattoo_feed/repositories/json_repo.py)
+  ⎿  Added 1 line, removed 3 lines
+      15  import tempfile
+      16  from collections.abc import Callable
+      17  from pathlib import Path
+      18 -from typing import Any, TypeVar                                
+      18 +from typing import Any                                         
+      19  
+      20  from pydantic import BaseModel, ValidationError
+      21  
+     ...
+      23  from tattoo_feed.models import Artist, InspirationItem, Prefere
+          nce
+      24  from tattoo_feed.repositories.base import Repository
+      25  
+      26 -T = TypeVar("T", bound=BaseModel)                              
+      26  
+      28 -                                                               
+      27  def _atomic_write(path: Path, payload: str) -> None:
+      28      """Write ``payload`` to ``path`` atomically (temp file + ``
+          os.replace``).
+      29  
+
+⏺ Update(src/tattoo_feed/repositories/json_repo.py)
+  ⎿  Added 1 line, removed 1 line
+      54          raise RepositoryError(f"could not write store at {path}
+          ") from exc
+      55  
+      56  
+      57 -class JsonModelRepository(Repository[T]):                      
+      57 +class JsonModelRepository[T: BaseModel](Repository[T]):        
+      58      """A :class:`Repository` backed by a JSON file of model dum
+          ps."""
+      59  
+      60      def __init__(self, path: Path, model: type[T], key: Callabl
+          e[[T], str]) -> None:
+
+⏺ Bash(cd /Users/tobyhuxtable/Documents/tattoo-feed
+      docker exec -e UV_LINK_MODE=copy tattoo-build bash -lc '…)
+  ⎿  Error: Exit code 1
+     ===== ruff format check =====
+     13 files already formatted
+     ===== ruff check =====
+     All checks passed!
+     ===== mypy =====
+     src/tattoo_feed/repositories/json_repo.py:134: error: Function 
+     "tattoo_feed.repositories.json_repo.JsonModelRepository.list" is not valid 
+     as a type  [valid-type]
+     src/tattoo_feed/repositories/json_repo.py:134: note: Perhaps you need 
+     "Callable[...]" or a callback protocol?
+     src/tattoo_feed/repositories/json_repo.py:136: error: "list?[T]" has no 
+     attribute "__iter__" (not iterable)  [attr-defined]
+     Found 2 errors in 1 file (checked 9 source files)
+
+⏺ The method named list shadows the builtin list in the _write parameter
+  annotation. I'll annotate _write with Sequence to sidestep the collision.
+
+⏺ Update(src/tattoo_feed/repositories/json_repo.py)
+  ⎿  Added 1 line, removed 1 line
+      13  import json
+      14  import os
+      15  import tempfile
+      16 -from collections.abc import Callable                           
+      16 +from collections.abc import Callable, Sequence                 
+      17  from pathlib import Path
+      18  from typing import Any
+      19  
+
+⏺ Update(src/tattoo_feed/repositories/json_repo.py)
+  ⎿  Added 1 line, removed 1 line
+      131          self._write(kept)
+      132          return True
+      133  
+      134 -    def _write(self, items: list[T]) -> None:                 
+      134 +    def _write(self, items: Sequence[T]) -> None:             
+      135          """Serialise ``items`` to the backing file atomically.
+           """
+      136          payload = json.dumps([item.model_dump(mode="json") for
+            item in items], indent=2)
+      137          _atomic_write(self._path, payload)
+
+⏺ Bash(cd /Users/tobyhuxtable/Documents/tattoo-feed
+      docker exec -e UV_LINK_MODE=copy tattoo-build bash -lc '…)
+  ⎿  ===== ruff format check =====
+     13 files already formatted
+     ===== ruff check =====
+     … +23 lines (ctrl+o to expand)
+
+⏺ Chunk 2 green, 100% coverage. Committing.
+
+⏺ Bash(cd /Users/tobyhuxtable/Documents/tattoo-feed
+      git add src/tattoo_feed/repositories tests/test_repositories.py…)
+  ⎿  3a28eb6 feat(core): JSON-file repository layer with atomic writes  [ch
+     unk 2]
+
+⏺ Chunk 2 committed. Now Chunk 3 — Graph client (mocked): the Business Discovery
+  client with video filtering, carousel→first-image, TTL cache, 429 backoff,
+  and typed-error mapping.
+
+⏺ Write(src/tattoo_feed/graph/client.py)
+  ⎿  Wrote 297 lines to src/tattoo_feed/graph/client.py
+       2 """Instagram Business Discovery API client.
+         covery`` on a Graph API call this project makes — ``business_dis
+          clean domainness/Creator account — and turns its responses into
+       5 :class:`Post` objects. Responsibilities that live here (and nowh
+       6 ere else):
+         see ``PLAN.md``).ng** — ``VIDEO`` media never leave this layer (
+       8 * **Carousel handling** — a ``CAROUSEL_ALBUM`` is represented by
+       9 * **A short TTL cache** — repeat lookups within the window skip 
+      10 * **429 backoff** — rate-limited requests are retried, then surf
+         aced as a typed
+     … +358 lines (ctrl+o to expand)
+⏺ Now the respx-driven tests covering every branch:
+
+⏺ Write(tests/test_graph_client.py)
+  ⎿  Wrote 314 lines to tests/test_graph_client.py
+      1 """Tests for the Business Discovery client — all HTTP mocked with
+         respx."""
+      2 
+      3 from __future__ import annotations
+      4 
+      5 from typing import Any
+      6 
+      7 import httpx
+      8 import pytest
+      9 import respx
+     … +335 lines (ctrl+o to expand)
+
+⏺ Bash(cd /Users/tobyhuxtable/Documents/tattoo-feed
+      docker exec -e UV_LINK_MODE=copy tattoo-build bash -lc '…)
+  ⎿  Error: Exit code 1
+     2 files reformatted, 13 files left unchanged
+     ===== ruff format check =====
+     15 files already formatted
+     ===== ruff check =====
+     F841 Local variable `rows` is assigned to but never used
+       --> tests/test_graph_client.py:75:5
+        |
+     73 | @respx.mock
+     74 | def test_fetch_filters_videos_and_resolves_carousels() -> None:
+     … +9 lines (ctrl+o to expand)
+
+⏺ I forgot to actually register the mock route in that first fetch test (left
+  rows unused). Let me fix it.
+
+⏺ Update(tests/test_graph_client.py)
+  ⎿  Added 1 line, removed 1 line
+      101              },
+      102          },
+      103      ]
+      104 +    respx.get(ENDPOINT).mock(return_value=_media_response(rows
+          +))                                                            
+      105      posts = _make_client().fetch_recent_media("artist")
+      106  
+      107      assert [p.id for p in posts] == ["1", "3"]  # video droppe
+           d, order preserved
+     ...
+      110      # First non-video child image is used when the parent has 
+           no media_url.
+      111      assert posts[1].image_url == "https://cdn/3a.jpg"
+      112      assert posts[0].artist_handle == "artist"
+      112 -    respx.get(ENDPOINT)  # route was matched                  
+      113  
+      114  
+      115  @respx.mock
+
+⏺ Bash(cd /Users/tobyhuxtable/Documents/tattoo-feed
+      docker exec -e UV_LINK_MODE=copy tattoo-build bash -lc '…)
+  ⎿  Error: Exit code 1
+     ===== ruff format check =====
+     15 files already formatted
+     ===== ruff check =====
+     All checks passed!
+     ===== mypy =====
+     src/tattoo_feed/graph/client.py:193: error: Argument 1 to "MediaType" has 
+     incompatible type "Any | None"; expected "str"  [arg-type]
+     Found 1 error in 1 file (checked 10 source files)
+
+⏺ Update(src/tattoo_feed/graph/client.py)
+  ⎿  Added 1 line, removed 1 line
+      190                          id=row["id"],
+      191                          artist_handle=handle,
+      192                          caption=row.get("caption"),
+      193 -                        media_type=MediaType(media_type),     
+      193 +                        media_type=MediaType(str(media_type)),
+      194                          image_url=image_url,
+      195                          permalink=row["permalink"],
+      196                          timestamp=row["timestamp"],
+
+⏺ Bash(cd /Users/tobyhuxtable/Documents/tattoo-feed
+      docker exec -e UV_LINK_MODE=copy tattoo-build bash -lc '…)
+  ⎿  ===== ruff check =====
+     All checks passed!
+     ===== mypy =====
+     … +22 lines (ctrl+o to expand)
+
+⏺ Gate is green at 99.48%. Two partial branches remain in the carousel
+  child-resolution loop — cheap to close and keeps the 100% standard. Let me add
+  one targeted test.
+
+⏺ Update(tests/test_graph_client.py)
+  ⎿  Added 22 lines
+      149  
+      150  
+      151  @respx.mock
+      152 +def test_carousel_skips_junk_children_until_first_usable_image
+          +() -> None:                                                   
+      153 +    rows = [                                                  
+      154 +        {                                                     
+      155 +            "id": "1",                                        
+      156 +            "media_type": "CAROUSEL_ALBUM",                   
+      157 +            "permalink": "https://ig/p/1",                    
+      158 +            "timestamp": "2024-09-27T17:24:54+0000",          
+      159 +            "children": {                                     
+      160 +                "data": [                                     
+      161 +                    "not-a-dict",                             
+      162 +                    {"media_type": "IMAGE"},  # image child wi
+          +th no media_url                                               
+      163 +                    {"media_type": "IMAGE", "media_url": "http
+          +s://cdn/good.jpg"},                                           
+      164 +                ]                                             
+      165 +            },                                                
+      166 +        }                                                     
+      167 +    ]                                                         
+      168 +    respx.get(ENDPOINT).mock(return_value=_media_response(rows
+          +))                                                            
+      169 +    posts = _make_client().fetch_recent_media("artist")       
+      170 +    assert posts[0].image_url == "https://cdn/good.jpg"       
+      171 +                                                              
+      172 +                                                              
+      173 +@respx.mock                                                   
+      174  def test_malformed_post_is_skipped_not_fatal() -> None:
+      175      rows = [
+      176          {
+
+⏺ Bash(cd /Users/tobyhuxtable/Documents/tattoo-feed
+      docker exec -e UV_LINK_MODE=copy tattoo-build bash -lc '…)
+  ⎿  15 files already formatted
+     All checks passed!
+     Success: no issues found in 10 source files
+     … +20 lines (ctrl+o to expand)
+
+  Read 1 file (ctrl+o to expand)
+
+⏺ Branch 213→220 is an IMAGE post with no media_url. Let me add that case to the
+  malformed-skip test.
+
+⏺ Update(tests/test_graph_client.py)
+  ⎿  Added 6 lines
+      179              "media_url": "https://cdn/1.jpg",
+      180          },  # no permalink
+      181          {
+      182 +            "id": "0",                                        
+      183 +            "media_type": "IMAGE",                            
+      184 +            "permalink": "https://ig/p/0",                    
+      185 +            "timestamp": "2024-09-27T17:24:54+0000",          
+      186 +        },  # IMAGE with no media_url -> skipped              
+      187 +        {                                                     
+      188              "id": "2",
+      189              "media_type": "IMAGE",
+      190              "media_url": "https://cdn/2.jpg",
+
+⏺ Bash(cd /Users/tobyhuxtable/Documents/tattoo-feed
+      docker exec -e UV_LINK_MODE=copy tattoo-build bash -lc '…)
+  ⎿  15 files already formatted
+     All checks passed!
+     Success: no issues found in 10 source files
+     … +10 lines (ctrl+o to expand)
+
+⏺ 100% coverage, all branches covered. Committing Chunk 3.
+
+⏺ Bash(cd /Users/tobyhuxtable/Documents/tattoo-feed
+      git add src/tattoo_feed/graph/client.py tests/test_graph_client.py…)
+  ⎿  22da1cf feat(graph): business discovery client with video filter  [chu
+     nk 3]
+
+⏺ Chunks 0–3 done. Now Chunk 4 — Image processing. First I'll generate the
+  committed sample JPEG fixture (with EXIF orientation, to prove stripping +
+  orientation handling), then write imaging.py.
+
+⏺ Bash(cd /Users/tobyhuxtable/Documents/tattoo-feed
+      docker exec tattoo-build bash -lc '…)
+  ⎿  wrote tests/fixtures/sample.jpg
+     size (1200, 800) orientation_tag 6 make TattooCam
+
+⏺ Write(src/tattoo_feed/imaging.py)
+  ⎿  Wrote 94 lines to src/tattoo_feed/imaging.py
+       2 """Preview image processing.
+       3 Turns a raw Instagram image into a lightweight, privacy-respecti
+       4 return to the client. The transform is deterministic and pinned 
+         (see
+       5 ``PLAN.md`` §2):
+       7 * longest edge capped at **640px**, aspect ratio preserved, **ne
+         ver upscaled**;
+       9 * **EXIF stripped** — but orientation is *applied first* so a ph
+         oto shot in
+      10   portrait does not come back sideways.
+     … +101 lines (ctrl+o to expand)
+
+⏺ Write(tests/test_imaging.py)  ⎿  Wrote 108 lines to tests/test_imaging.py
+       2 """Tests for preview image processing.
+       3 Exercised against the committed ``tests/fixtures/sample.jpg`` (a
+          1200x800
+       4 image carrying EXIF, including orientation tag 6) plus in-memory
+          images for
+       6 """e cases. No network: downloads are mocked with respx.
+       7 
+       8 from __future__ import annotations
+       9 
+      10 import io
+     … +108 lines (ctrl+o to expand)
+
+⏺ Bash(cd /Users/tobyhuxtable/Documents/tattoo-feed
+      docker exec -e UV_LINK_MODE=copy tattoo-build bash -lc '…)
+  ⎿  1 file reformatted, 16 files left unchanged
+     17 files already formatted
+     All checks passed!
+     … +19 lines (ctrl+o to expand)
+
+⏺ Chunk 4 green at 100%. Committing (including the JPEG fixture).
+
+⏺ Bash(cd /Users/tobyhuxtable/Documents/tattoo-feed
+      git add src/tattoo_feed/imaging.py tests/test_imaging.py
+      tests/fixtures/sample.jpg…)
+  ⎿  53482e7 feat(core): preview image processing (downscale + EXIF strip)
+      [chunk 4]
+
+⏺ Chunks 0–4 complete and committed. Now Chunk 5 — Core services (the largest).
+  First, a small refactor: expose a public normalize_handle in models.py so
+  services reuse it.
+
+⏺ Bash(cd /Users/tobyhuxtable/Documents/tattoo-feed
+      grep -n "_normalize_handle" src/tattoo_feed/models.py)
+  ⎿  30:def _normalize_handle(value: str) -> str:
+     77:        return _normalize_handle(value)
+     98:        normalized = _normalize_handle(value)
+     133:        return _normalize_handle(value)
+
+⏺ Bash(cd /Users/tobyhuxtable/Documents/tattoo-feed
+      docker exec tattoo-build bash -lc 'cd /workspace && sed -i
+      "s/_normalize_handle/normalize_handle/g" src/tattoo_feed…)
+  ⎿  30:def normalize_handle(value: str) -> str:
+     77:        return normalize_handle(value)
+     98:        normalized = normalize_handle(value)
+     133:        return normalize_handle(value)
+
+⏺ Now the four service files:
+
+⏺ Write(src/tattoo_feed/services/artists.py)
+  ⎿  Wrote 53 lines to src/tattoo_feed/services/artists.py
+       1 """ArtistService — managing the tracked list of artists."""
+       2 
+       3 from __future__ import annotations
+       4 
+       5 from tattoo_feed.graph.client import BusinessDiscoveryClient
+       6 from tattoo_feed.models import Artist, normalize_handle
+       7 from tattoo_feed.repositories.json_repo import ArtistRepository
+       8 
+       9 
+      10 class ArtistService:
+     … +55 lines (ctrl+o to expand)
+
+⏺ Write(src/tattoo_feed/services/feed.py)
+  ⎿  Wrote 54 lines to src/tattoo_feed/services/feed.py
+         d artists."""e — the merged, newest-first feed across all tracke
+       2 
+       3 from __future__ import annotations
+       4 
+       5 import logging
+       6 
+       7 from tattoo_feed.errors import TattooFeedError
+       8 from tattoo_feed.graph.client import BusinessDiscoveryClient
+       9 from tattoo_feed.models import Post
+      10 from tattoo_feed.repositories.json_repo import ArtistRepository
+     … +53 lines (ctrl+o to expand)
+
+⏺ Write(src/tattoo_feed/services/inspiration.py)
+  ⎿  Wrote 101 lines to src/tattoo_feed/services/inspiration.py
+         xperience."""nService — the one-at-a-time discovery and saving e
+       2 
+       3 from __future__ import annotations
+       4 
+       5 from tattoo_feed.errors import TattooFeedError
+       6 from tattoo_feed.models import InspirationItem, Post
+       7 from tattoo_feed.repositories.json_repo import (
+       8     InspirationRepository,
+       9     SeenSetRepository,
+      10 )
+     … +101 lines (ctrl+o to expand)
+
+⏺ Write(src/tattoo_feed/services/preferences.py)
+  ⎿  Wrote 42 lines to src/tattoo_feed/services/preferences.py
+         notes."""enceService — recording and recalling the user's taste 
+       2 
+       3 from __future__ import annotations
+       4 
+       5 from tattoo_feed.models import Preference
+         orym tattoo_feed.repositories.json_repo import PreferenceReposit
+       7 
+       8 
+       9 class PreferenceService:
+      10     """Persists taste observations and reads them back.
+     … +36 lines (ctrl+o to expand)
+
+⏺ Now the service tests, using real tmp_path repos and a duck-typed fake Graph
+  client:
+
+⏺ Write(tests/test_services.py)
+  ⎿  Wrote 209 lines to tests/test_services.py
+      1 """Tests for the core services, with tmp_path repos and a fake Gr
+        aph client."""
+      2 
+      3 from __future__ import annotations
+      4 
+      5 from datetime import UTC, datetime, timedelta
+      6 from pathlib import Path
+      7 
+      8 import pytest
+      9 from pydantic import ValidationError
+     … +228 lines (ctrl+o to expand)
+
+⏺ Let me clean up some sloppy bits in that test (an unused helper and __import__
+  hacks).
+
+⏺ Update(tests/test_services.py)
+  ⎿  Added 1 line, removed 1 line
+       9  from pydantic import ValidationError
+      10  
+      11  from tattoo_feed.errors import NotAProfessionalAccountError, Ta
+          ttooFeedError
+      12 -from tattoo_feed.models import MediaType, Post                 
+      12 +from tattoo_feed.models import Artist, MediaType, Post         
+      13  from tattoo_feed.repositories.json_repo import (
+      14      ArtistRepository,
+      15      InspirationRepository,
+
+⏺ Update(tests/test_services.py)
+  ⎿  Added 2 lines, removed 8 lines
+       91  # --- FeedService --------------------------------------------
+           ---------------
+       92  
+       93  
+       94 -def _feed_service(tmp_path: Path, **client_kwargs: object) -> 
+          -FeedService:                                                  
+       95 -    repo = ArtistRepository(tmp_path / "a.json")              
+       96 -    repo.add_artist = None  # type: ignore[attr-defined]  # gu
+          -ard against misuse                                            
+       97 -    return FeedService(repo, FakeClient(**client_kwargs))  # t
+          -ype: ignore[arg-type]                                         
+       98 -                                                              
+       99 -                                                              
+       94  def test_get_feed_merges_and_sorts_newest_first(tmp_path: Path
+           ) -> None:
+       95      repo = ArtistRepository(tmp_path / "a.json")
+      102 -    repo.add(__import__("tattoo_feed.models", fromlist=["Artis
+          -t"]).Artist(handle="alice"))                                  
+      103 -    repo.add(__import__("tattoo_feed.models", fromlist=["Artis
+          -t"]).Artist(handle="bob"))                                    
+       96 +    repo.add(Artist(handle="alice"))                          
+       97 +    repo.add(Artist(handle="bob"))                            
+       98      client = FakeClient(
+       99          media={
+      100              "alice": [_post("a1", "alice", 0), _post("a2", "al
+           ice", 30)],
+
+⏺ Update(tests/test_services.py)
+  ⎿  Removed 2 lines
+      107  
+      108  
+      109  def test_get_feed_skips_failing_artist(tmp_path: Path) -> None
+           :
+      110 -    from tattoo_feed.models import Artist                     
+      111 -                                                              
+      110      repo = ArtistRepository(tmp_path / "a.json")
+      111      repo.add(Artist(handle="alice"))
+      112      repo.add(Artist(handle="bob"))
+
+⏺ Update(tests/test_services.py)
+  ⎿  Removed 2 lines
+      129  
+      130  
+      131  def _inspiration(tmp_path: Path) -> InspirationService:
+      132 -    from tattoo_feed.models import Artist                     
+      133 -                                                              
+      132      artist_repo = ArtistRepository(tmp_path / "a.json")
+      133      artist_repo.add(Artist(handle="alice"))
+      134      client = FakeClient(
+
+⏺ Bash(cd /Users/tobyhuxtable/Documents/tattoo-feed
+      docker exec -e UV_LINK_MODE=copy tattoo-build bash -lc '…)
+  ⎿  2 files reformatted, 20 files left unchanged
+     22 files already formatted
+     All checks passed!
+     … +21 lines (ctrl+o to expand)
+
+⏺ Chunk 5 green at 100%. Committing (includes the models.py rename).
+
+⏺ Bash(cd /Users/tobyhuxtable/Documents/tattoo-feed
+      git add src/tattoo_feed/services src/tattoo_feed/models.py
+      tests/test_services.py…)  ⎿  85a6fb8 feat(core): artist, feed, inspiration, and preference services
+       [chunk 5]
+
+⏺ Chunks 0–5 done. Now Chunk 6 — MCP server + boot test, plus the lazy
+  config.py.
+
+⏺ Write(src/tattoo_feed/config.py)
+  ⎿  Wrote 48 lines to src/tattoo_feed/config.py
+       2 """Lazy environment configuration.
+       3 Credentials are read from the environment on demand — never at i
+         mport time —
+         ntials and norver can boot and list its tools with no real crede
+       5 network access. Only when a tool actually calls Instagram is the
+          config loaded.
+       7 """
+       8 from __future__ import annotations
+       9 
+      10 import os
+     … +44 lines (ctrl+o to expand)
+
+⏺ Write(src/tattoo_feed/server/app.py)
+  ⎿  Wrote 200 lines to src/tattoo_feed/server/app.py
+      2 """FastMCP adapter exposing the tattoo_feed core as MCP tools.
+      3 This module is deliberately thin: every tool is a small wrapper t
+        hat delegates
+      4 to a ``core`` service. No business logic lives here. Services are
+         built lazily
+        ls overt tool use, so importing this module — and listing the too
+      6 stdio — needs no credentials and makes no network calls.
+      7 """
+      8 
+      9 from __future__ import annotations
+     … +215 lines (ctrl+o to expand)
+
+⏺ Now the boot test plus in-process tests for coverage. First let me confirm how
+  @mcp.tool() returns the function in this mcp version:
+
+⏺ Bash(cd /Users/tobyhuxtable/Documents/tattoo-feed
+      docker exec tattoo-build bash -lc '…)
+  ⎿  type: <class 'function'>
+     callable: True
+     call: 2
+
+⏺ The decorator returns the original function — direct calls work. Now the boot
+  test and in-process tests:
+
+⏺ Write(tests/test_server_boot.py)
+  ⎿  Wrote 43 lines to tests/test_server_boot.py
+         ts tools.est: start the server over stdio with dummy env, list i
+       2 
+       3 This proves the server actually boots with no network and no rea
+       4 and that it exposes exactly the tool surface defined in PLAN.md 
+         §6.
+       5 """
+       7 from __future__ import annotations
+       8 
+       9 import os
+      10 import sys
+     … +38 lines (ctrl+o to expand)
+
+⏺ Write(tests/test_config.py)
+  ⎿  Wrote 26 lines to tests/test_config.py
+      1 """Tests for lazy environment configuration."""
+      2 
+      3 from __future__ import annotations
+      4 
+      5 import pytest
+      6 
+      7 from tattoo_feed.config import ACCESS_TOKEN_ENV, USER_ID_ENV, Con
+        fig, load_config
+      8 from tattoo_feed.errors import TattooFeedError
+      9 
+     … +20 lines (ctrl+o to expand)
+
+⏺ Write(tests/test_server_tools.py)
+  ⎿  Wrote 201 lines to tests/test_server_tools.py
+         stdio boot).s tests of the MCP tool wrappers (separate from the 
+       2 
+       3 These call the thin tool functions directly with fake services i
+         njected, so the
+       4 adapter layer is covered without spawning a subprocess.
+       6 """
+       7 from __future__ import annotations
+       8 
+       9 from collections.abc import Iterator
+      10 from datetime import UTC, datetime
+     … +200 lines (ctrl+o to expand)
+
+⏺ Bash(cd /Users/tobyhuxtable/Documents/tattoo-feed
+      docker exec -e UV_LINK_MODE=copy tattoo-build bash -lc '…)
+  ⎿  27 files left unchanged
+     27 files already formatted
+     SIM117 Use a single `with` statement with multiple contexts instead of
+     … +37 lines (ctrl+o to expand)
+
+⏺ All 101 tests pass (including the real stdio boot test) at 100% coverage. Just
+  a lint nit — combine the nested async with. Let me fix it.
+
+⏺ Update(tests/test_server_boot.py)
+  ⎿  Added 6 lines, removed 4 lines
+      34          # Dummy (not real) credentials: enough to boot, never u
+          sed to list tools.
+      35          env={**os.environ, "IG_ACCESS_TOKEN": "dummy-token", "I
+          G_USER_ID": "dummy-id"},
+      36      )
+      37 -    async with stdio_client(params) as (read, write):          
+      38 -        async with ClientSession(read, write) as session:      
+      39 -            await session.initialize()                         
+      40 -            result = await session.list_tools()                
+      37 +    async with (                                               
+      38 +        stdio_client(params) as (read, write),                 
+      39 +        ClientSession(read, write) as session,                 
+      40 +    ):                                                         
+      41 +        await session.initialize()                             
+      42 +        result = await session.list_tools()                    
+      43  
+      44      names = {tool.name for tool in result.tools}
+      45      assert names == EXPECTED_TOOLS
+
+⏺ Bash(cd /Users/tobyhuxtable/Documents/tattoo-feed
+      docker exec -e UV_LINK_MODE=copy tattoo-build bash -lc '…)
+  ⎿  27 files already formatted
+     All checks passed!
+     Success: no issues found in 17 source files
+     … +6 lines (ctrl+o to expand)
+
+⏺ Chunk 6 green at 100%, server boots over stdio. Committing.
+
+⏺ Bash(cd /Users/tobyhuxtable/Documents/tattoo-feed
+      git add src/tattoo_feed/config.py src/tattoo_feed/server/app.py
+      tests/test_server_boot.py tests/test_server_tools.p…)
+  ⎿  e687261 feat(server): FastMCP adapter, lazy config, and stdio boot tes
+     t  [chunk 6]
+
+⏺ Chunks 0–6 done. Now Chunk 7 — Docs & polish. Docstrings are already enforced
+  green by ruff's D rules across src. The main deliverable is a complete README
+  covering every pinned decision.
+
+⏺ Write(README.md)
+  ⎿  Added 183 lines, removed 13 lines
+        1  # Tattoo Feed
+        2  
+        3 -An MCP (Model Context Protocol) server that lets an LLM client
+          - browse and curate                                            
+        4 -posts from a hand-picked list of Instagram tattoo artists, via
+          - Instagram's                                                  
+        5 -Business Discovery API.                                       
+        3 +An **MCP (Model Context Protocol) server** that lets an LLM cl
+          +ient (e.g. Claude                                             
+        4 +Desktop) browse and curate posts from a hand-picked list of In
+          +stagram tattoo                                                
+        5 +artists, via Instagram's **Business Discovery** API.          
+        6  
+        7 -> Skeleton README — fleshed out in Chunk 7. See `PLAN.md` for 
+          -the build plan and                                            
+        8 -> `CLAUDE.md` for the operating rules.                        
+        7 +You point it at the artists you follow, and from your chat cli
+          +ent you can pull a                                            
+        8 +merged feed, discover one post at a time, bookmark the ones yo
+          +u like, and record                                            
+        9 +notes about your taste so a future session remembers them.    
+       10  
+       10 -## Status                                                     
+       11 +---                                                           
+       12  
+       12 -Work in progress, built chunk-by-chunk on the `feat/auto-build
+          -` branch.                                                     
+       13 +## Architecture                                               
+       14  
+       14 -## Layout                                                     
+       15 +A deliberate two-layer split so a future GUI can reuse the log
+          +ic without a                                                  
+       16 +rewrite:                                                      
+       17  
+       16 -- `core` (`src/tattoo_feed/` minus `server/`) — pure domain lo
+          -gic: models,                                                  
+       17 -  errors, repositories, the Graph client, imaging, and service
+          -s.                                                            
+       18 -- `server` (`src/tattoo_feed/server/`) — a thin FastMCP adapte
+          -r exposing the                                                
+       19 -  core as MCP tools.                                          
+       18 +- **`core`** (`src/tattoo_feed/` excluding `server/`) — all re
+          +al logic: domain                                              
+       19 +  models, typed errors, JSON-file repositories, the Graph API 
+          +client, image                                                 
+       20 +  processing, and the services that orchestrate them. Knows no
+          +thing about MCP.                                              
+       21 +- **`server`** (`src/tattoo_feed/server/`) — a thin [FastMCP](
+          +https://github.com/modelcontextprotocol/python-sdk)           
+       22 +  adapter that exposes `core` as MCP tools. Holds no business 
+          +logic.                                                        
+       23  
+       24 +```                                                           
+       25 +src/tattoo_feed/                                              
+       26 +  config.py            # lazy env config (IG_ACCESS_TOKEN, IG_
+          +USER_ID)                                                      
+       27 +  models.py            # Pydantic v2 value objects            
+       28 +  errors.py            # typed error hierarchy                
+       29 +  imaging.py           # preview downscale + EXIF strip       
+       30 +  repositories/        # Repository ABC + JSON-file stores (at
+          +omic writes)                                                  
+       31 +  graph/client.py      # Business Discovery client            
+       32 +  services/            # FeedService, ArtistService, Inspirati
+          +onService, PreferenceService                                  
+       33 +  server/app.py        # FastMCP tools + stdio entrypoint     
+       34 +```                                                           
+       35 +                                                              
+       36 +---                                                           
+       37 +                                                              
+       38 +## Setup                                                      
+       39 +                                                              
+       40 +Requirements: Python 3.12 and [uv](https://docs.astral.sh/uv/)
+          +.                                                             
+       41 +                                                              
+       42 +```bash                                                       
+       43 +uv sync                       # create the venv and install pi
+          +nned deps                                                     
+       44 +cp .env.example .env          # then edit .env with your real 
+          +credentials                                                   
+       45 +```                                                           
+       46 +                                                              
+       47 +### Environment variables                                     
+       48 +                                                              
+       49 +| Variable           | Meaning                                
+          +                        |                                     
+       50 +|--------------------|----------------------------------------
+          +------------------------|                                     
+       51 +| `IG_ACCESS_TOKEN`  | A long-lived Instagram Graph API access
+          + token.                 |                                     
+       52 +| `IG_USER_ID`       | The Instagram Business/Creator account 
+          +id that owns the token. |                                     
+       53 +| `TATTOO_FEED_DATA_DIR` | Optional. Where the JSON stores liv
+          +e (default `./data`).   |                                     
+       54 +                                                              
+       55 +`.env` is gitignored and must never be committed. Only `.env.e
+          +xample` (with                                                 
+       56 +placeholders) is in the repo.                                 
+       57 +                                                              
+       58 +Getting credentials is a one-time manual step on Meta's side: 
+          +create a Meta app,                                            
+       59 +connect an Instagram Business/Creator account, and mint a **lo
+          +ng-lived** access                                             
+       60 +token with Business Discovery permission. Both the querying ac
+          +count and the                                                 
+       61 +artists you look up must be professional accounts.            
+       62 +                                                              
+       63 +---                                                           
+       64 +                                                              
+       65 +## Running                                                    
+       66 +                                                              
+       67 +### Locally (stdio)                                           
+       68 +                                                              
+       69 +```bash                                                       
+       70 +uv run python -m tattoo_feed.server.app                       
+       71 +```                                                           
+       72 +                                                              
+       73 +The server speaks the MCP stdio protocol, so you normally don'
+          +t run it by hand —                                            
+       74 +you register it with an MCP client. For Claude Desktop, add to
+          + its config:                                                  
+       75 +                                                              
+       76 +```json                                                       
+       77 +{                                                             
+       78 +  "mcpServers": {                                             
+       79 +    "tattoo-feed": {                                          
+       80 +      "command": "uv",                                        
+       81 +      "args": ["run", "python", "-m", "tattoo_feed.server.app"
+          +],                                                            
+       82 +      "cwd": "/absolute/path/to/tattoo-feed",                 
+       83 +      "env": {                                                
+       84 +        "IG_ACCESS_TOKEN": "your-token",                      
+       85 +        "IG_USER_ID": "your-business-user-id"                 
+       86 +      }                                                       
+       87 +    }                                                         
+       88 +  }                                                           
+       89 +}                                                             
+       90 +```                                                           
+       91 +                                                              
+       92 +### In Docker                                                 
+       93 +                                                              
+       94 +A dev image (`Dockerfile`) bundles Python, `uv`, Node, and the
+          + toolchain. Build                                             
+       95 +and open a shell with **only this folder** mounted to `/worksp
+          +ace`:                                                         
+       96 +                                                              
+       97 +```bash                                                       
+       98 +docker build -t tattoo-feed-dev .                             
+       99 +./run-loop.sh        # mounts $PWD to /workspace, nothing else
+          + on your machine                                              
+      100 +```                                                           
+      101 +                                                              
+      102 +Inside the container you have the full gate and can run the se
+          +rver exactly as                                               
+      103 +above. The volume mount means anything written under `/workspa
+          +ce` lands back in                                             
+      104 +this folder on your host.                                     
+      105 +                                                              
+      106 +---                                                           
+      107 +                                                              
+      108 +## The tools (MCP surface)                                    
+      109 +                                                              
+      110 +| Tool | What it does |                                       
+      111 +|------|--------------|                                       
+      112 +| `list_artists` | List tracked artists. |                    
+      113 +| `add_artist(handle)` | Validate the handle is a reachable **
+          +professional** account, then track it. |                      
+      114 +| `remove_artist(handle)` | Stop tracking a handle. |         
+      115 +| `get_feed(limit_per_artist=10)` | Merged, newest-first feed.
+          + Metadata + permalinks only (no images). |                    
+      116 +| `next_inspiration()` | One **not-yet-seen** post, marked see
+          +n, with a rendered preview image. |                           
+      117 +| `save_to_inspiration(post_id, notes=None)` | Bookmark a post
+          + into the saved collection. |                                 
+      118 +| `list_inspiration()` | The saved collection, in save order. 
+          +|                                                             
+      119 +| `remove_from_inspiration(post_id)` | Remove a saved item. | 
+      120 +| `reset_seen()` | Clear the seen-set so inspiration starts fr
+          +esh. |                                                        
+      121 +| `record_preference(observation)` | Persist a taste note (**p
+          +ropose-then-confirm**, see below). |                          
+      122 +| `get_preference_summary()` | All recorded preferences, to re
+          +load taste in a fresh session. |                              
+      123 +                                                              
+      124 +---                                                           
+      125 +                                                              
+      126 +## Design decisions                                           
+      127 +                                                              
+      128 +- **Two-layer split (core / server).** MCP concepts never leak
+          + into `core`;                                                 
+      129 +  business logic never leaks into `server`. This is what makes
+          + a phase-2 GUI a                                              
+      130 +  bolt-on rather than a rewrite.                              
+      131 +- **JSON-file persistence behind a `Repository` interface.** S
+          +imple, inspectable,                                           
+      132 +  and swappable. Writes are **atomic** (temp file + `os.replac
+          +e`) so a crash                                                
+      133 +  mid-write can never corrupt a store.                        
+      134 +- **Pydantic v2 frozen models** for everything crossing a boun
+          +dary, so external                                             
+      135 +  data is validated once and treated as immutable values there
+          +after.                                                        
+      136 +- **Typed error hierarchy** (`TattooFeedError` and friends). E
+          +very external                                                 
+      137 +  failure maps to a typed error; nothing raises bare exception
+          +s across a                                                    
+      138 +  boundary, so the client always gets a readable message inste
+          +ad of a stack                                                 
+      139 +  trace.                                                      
+      140 +- **Lazy credentials.** The server boots and lists its tools w
+          +ith no network and                                            
+      141 +  no real credentials; the token is only read when a tool actu
+          +ally calls                                                    
+      142 +  Instagram.                                                  
+      143 +- **Hermetic tests.** All Instagram HTTP is mocked with `respx
+          +`; there are zero                                             
+      144 +  live network calls in the test suite. (`mypy --strict`, `ruf
+          +f`, and a 90%                                                 
+      145 +  coverage floor are enforced.)                               
+      146 +- **Images only where they earn their context.** Only `next_in
+          +spiration` returns                                            
+      147 +  a rendered image — the one-at-a-time conversational moment. 
+          +`get_feed` stays                                              
+      148 +  metadata-only to keep the context window light.             
+      149 +                                                              
+      150 +---                                                           
+      151 +                                                              
+      152 +## Limitations (by design)                                    
+      153 +                                                              
+      154 +- **No video.** Video posts are filtered out entirely at the G
+          +raph-client layer                                             
+      155 +  and never enter the feed, inspiration, or stores.           
+      156 +- **Carousels show the first image only.** Multi-image expansi
+          +on is out of scope.                                           
+      157 +- **Manual token refresh.** There is no automatic token refres
+          +h. When the token                                             
+      158 +  expires, tools fail with a clear `TokenExpiredError` telling
+          + you to mint a new                                            
+      159 +  long-lived token and update `IG_ACCESS_TOKEN`.              
+      160 +- **Preview sizing is fixed.** Previews are capped at **640px 
+          +on the long edge**,                                           
+      161 +  aspect ratio preserved, never upscaled, re-encoded as **JPEG
+          + quality 85**.                                                
+      162 +- **`record_preference` is propose-then-confirm.** The tool pe
+          +rsists whatever it                                            
+      163 +  is given; the *discipline* of proposing the observation to y
+          +ou and getting your                                           
+      164 +  explicit confirmation **before** the tool is called lives in
+          + the tool's                                                   
+      165 +  description, so the calling assistant honours it.           
+      166 +- **No write access to Instagram.** No posting, commenting, or
+          + messaging — this                                             
+      167 +  is strictly read-and-curate.                                
+      168 +                                                              
+      169 +---                                                           
+      170 +                                                              
+      171 +## Attribution & copyright                                    
+      172 +                                                              
+      173 +Posts belong to the artists who made them. This tool is for **
+          +personal                                                      
+      174 +discovery and curation**, not redistribution:                 
+      175 +                                                              
+      176 +- Previews are **downscaled** copies (≤640px, EXIF stripped), 
+          +not full-resolution                                           
+      177 +  downloads.                                                  
+      178 +- Every image and saved item carries the artist's **handle** a
+          +nd the post's                                                 
+      179 +  **permalink**, so attribution travels with the content and y
+          +ou can always open                                            
+      180 +  the original on Instagram.                                  
+      181 +- Respect each artist's rights: don't repost or reuse their wo
+          +rk without                                                    
+      182 +  permission.                                                 
+      183 +                                                              
+      184 +---                                                           
+      185 +                                                              
+      186  ## Development
+      187  
+      188 +The full gate (must all exit 0):                              
+      189 +                                                              
+      190  ```bash
+       24 -uv sync                                                       
+      191  uv run ruff format --check .
+      192  uv run ruff check .
+      193  uv run mypy --strict src
+      194  uv run pytest -q --cov=src/tattoo_feed --cov-report=term-missi
+           ng --cov-fail-under=90
+      195  ```
+      196 +                                                              
+      197 +## License                                                    
+      198 +                                                              
+      199 +MIT — see [`LICENSE`](LICENSE).                               
+
+⏺ Bash(cd /Users/tobyhuxtable/Documents/tattoo-feed
+      docker exec -e UV_LINK_MODE=copy tattoo-build bash -lc '…)
+  ⎿  27 files already formatted
+     All checks passed!
+     Success: no issues found in 17 source files
+     … +6 lines (ctrl+o to expand)
+
+⏺ Gate green. Committing Chunk 7.
+
+⏺ Bash(cd /Users/tobyhuxtable/Documents/tattoo-feed
+      git add README.md…)
+  ⎿  e4d31a7 docs: complete README — setup, design decisions, limitations
+     [chunk 7]
+
+⏺ Chunks 0–7 done. Final Chunk 8 — Image rendering (REVIEW-FLAGGED). First, let
+  me inspect the FastMCP Image/content API so I wire the base64 image block
+  correctly.
+⏺ Bash(cd /Users/tobyhuxtable/Documents/tattoo-feed
+      docker exec tattoo-build bash -lc '…)
+  ⎿  Image init: (self, path: str | pathlib.Path | None = None, data: bytes
+      | None = None, format: str | None = None)
+     methods: ['_get_mime_type', 'to_image_content']
+     … +40 lines (ctrl+o to expand)
+
+⏺ Image(data=..., format="jpeg").to_image_content() gives a base64 image/jpeg
+  block. Now I'll wire it into next_inspiration, returning [image, text].
+
+⏺ Update(src/tattoo_feed/server/app.py)
+  ⎿  Added 3 lines, removed 1 line
+      13  from pathlib import Path
+      14  
+      15  import httpx
+      16 -from mcp.server.fastmcp import FastMCP                         
+      16 +from mcp.server.fastmcp import FastMCP, Image                  
+      17 +from mcp.types import ImageContent, TextContent                
+      18  
+      19  from tattoo_feed.config import load_config
+      20  from tattoo_feed.graph.client import BusinessDiscoveryClient
+      21 +from tattoo_feed.imaging import fetch_preview                  
+      22  from tattoo_feed.models import Artist, InspirationItem, Post, P
+          reference
+      23  from tattoo_feed.repositories.json_repo import (
+      24      ArtistRepository,
+
+⏺ Update(src/tattoo_feed/server/app.py)
+  ⎿  Added 2 lines, removed 3 lines
+       94  
+       95  
+       96  def _format_post(post: Post) -> str:
+       97 -    """Render a post's metadata as readable text (image added 
+          -in Chunk 8)."""                                               
+       97 +    """Render a post's metadata as readable text to accompany 
+          +its image."""                                                 
+       98      caption = post.caption or "(no caption)"
+       99      return (
+      100          f"@{post.artist_handle} — {post.timestamp:%Y-%m-%d}\n"
+      101          f"{caption}\n"
+      102 -        f"{post.permalink}\n"                                 
+      103 -        "[image preview pending — added in a later build step]
+          -"                                                             
+      102 +        f"{post.permalink}"                                   
+      103      )
+      104  
+      105  
+
+⏺ Update(src/tattoo_feed/server/app.py)
+  ⎿  Added 15 lines, removed 5 lines
+      136  
+      137  
+      138  @mcp.tool()
+      139 -def next_inspiration() -> str:                                
+      139 +def next_inspiration() -> list[ImageContent | TextContent]:   
+      140      """Show one not-yet-seen post for inspiration, then mark i
+           t seen.
+      141  
+      142 -    Calling repeatedly walks through unseen posts; use reset_s
+          -een to start over.                                            
+      142 +    Returns a rendered preview image (downscaled, EXIF-strippe
+          +d) alongside the                                              
+      143 +    artist handle and permalink. Calling repeatedly walks thro
+          +ugh unseen posts;                                             
+      144 +    use reset_seen to start over.                             
+      145      """
+      144 -    post = _get_services().inspiration.next_inspiration()     
+      146 +    services = _get_services()                                
+      147 +    post = services.inspiration.next_inspiration()            
+      148      if post is None:
+      146 -        return "No new inspiration right now — call reset_seen
+          - to start over."                                              
+      147 -    return _format_post(post)                                 
+      149 +        return [                                              
+      150 +            TextContent(                                      
+      151 +                type="text",                                  
+      152 +                text="No new inspiration right now — call rese
+          +t_seen to start over.",                                       
+      153 +            )                                                 
+      154 +        ]                                                     
+      155 +    preview = fetch_preview(post.image_url, services.http)    
+      156 +    image = Image(data=preview, format="jpeg").to_image_conten
+          +t()                                                           
+      157 +    return [image, TextContent(type="text", text=_format_post(
+          +post))]                                                       
+      158  
+      159  
+      160  @mcp.tool()
+
+⏺ Now update the two next_inspiration tests in test_server_tools.py to the new
+  content-block behavior:
+
+⏺ Update(tests/test_server_tools.py)
+  ⎿  Added 3 lines
+      10  from datetime import UTC, datetime
+      11  from pathlib import Path
+      12  
+      13 +import httpx                                                   
+      14  import pytest
+      15 +import respx                                                   
+      16  
+      17  from tattoo_feed.models import Artist, InspirationItem, MediaTy
+          pe, Post, Preference
+      18  from tattoo_feed.server import app
+      19  
+      20  TS = datetime(2024, 3, 4, tzinfo=UTC)
+      21 +FIXTURE = Path(__file__).parent / "fixtures" / "sample.jpg"    
+      22  
+      23  
+      24  def _post(post_id: str = "p1") -> Post:
+
+⏺ Update(tests/test_server_tools.py)
+  ⎿  Added 16 lines, removed 7 lines
+      140      assert [p.id for p in app.get_feed()] == ["p1", "p2"]
+      141  
+      142  
+      143 -def test_next_inspiration_with_post_formats_metadata() -> None
+          -:                                                             
+      144 -    _install(_post("p9"))                                     
+      145 -    text = app.next_inspiration()                             
+      146 -    assert "@alice" in text                                   
+      147 -    assert "https://ig/p/p9" in text                          
+      148 -    assert "image preview pending" in text                    
+      143 +@respx.mock                                                   
+      144 +def test_next_inspiration_returns_image_then_metadata() -> Non
+          +e:                                                            
+      145 +    services = _install(_post("p9"))                          
+      146 +    services.http = httpx.Client()                            
+      147 +    respx.get("https://cdn/p9.jpg").mock(                     
+      148 +        return_value=httpx.Response(200, content=FIXTURE.read_
+          +bytes())                                                      
+      149 +    )                                                         
+      150 +    blocks = app.next_inspiration()                           
+      151 +    assert blocks[0].type == "image"                          
+      152 +    assert blocks[0].mimeType == "image/jpeg"                 
+      153 +    assert blocks[1].type == "text"                           
+      154 +    assert "@alice" in blocks[1].text                         
+      155 +    assert "https://ig/p/p9" in blocks[1].text                
+      156  
+      157  
+      158  def test_next_inspiration_when_nothing_new() -> None:
+      159      _install(None)
+      153 -    assert "reset_seen" in app.next_inspiration()             
+      160 +    blocks = app.next_inspiration()                           
+      161 +    assert blocks[0].type == "text"                           
+      162 +    assert "reset_seen" in blocks[0].text                     
+      163  
+      164  
+      165  def test_save_to_inspiration_passes_notes() -> None:
+
+⏺ Now the dedicated structural test for the rendered image block (Chunk 8's
+  required tests):
+
+⏺ Write(tests/test_image_rendering.py)
+  ⎿  Wrote 69 lines to tests/test_image_rendering.py
+        nk 8).uctural tests for the rendered inspiration image block (Chu
+      2 
+      3 These verify the *structure* of what next_inspiration returns — v
+      4 correct MIME type, non-zero bytes, and a long edge within the pin
+        ned 640px cap.
+      5 They cannot verify that the image *visually renders* in a client;
+      6 human eyeball check described in REVIEW.md.
+      7 """
+      8 
+      9 from __future__ import annotations
+     … +68 lines (ctrl+o to expand)
+
+⏺ Bash(cd /Users/tobyhuxtable/Documents/tattoo-feed
+      docker exec -e UV_LINK_MODE=copy tattoo-build bash -lc '…)
+  ⎿  28 files left unchanged
+     28 files already formatted
+     All checks passed!
+     … +23 lines (ctrl+o to expand)
+
+⏺ Chunk 8 green at 100%, all 102 tests pass. Committing.
+
+⏺ Bash(cd /Users/tobyhuxtable/Documents/tattoo-feed
+      git add src/tattoo_feed/server/app.py tests/test_server_tools.py
+      tests/test_image_rendering.py…)
+  ⎿  8583dcc feat(server): render real preview image in next_inspiration  [
+     chunk 8]
+
+⏺ All nine chunks (0–8) are committed green at 100% coverage. No BLOCKERS.md was
+  needed. Now I'll fill in only the two bracketed sections at the bottom of the
+  existing REVIEW.md (not overwriting anything else).
+
+  Read 1 file (ctrl+o to expand)
+
+⏺ Update(REVIEW.md)
+  ⎿  Added 45 lines, removed 3 lines
+       84  
+       85  ## Loop fills these in before stopping
+       86  
+       87 -**Chunks completed:** [ e.g. 0–8 all green / 0–6 green, 7 bloc
+          -ked ]                                                         
+       87 +**Chunks completed:** 0–8, all green. One commit per chunk on 
+          +`feat/auto-build`,                                            
+       88 +each passing the full gate (ruff format + ruff check + mypy --
+          +strict + pytest)                                              
+       89 +**inside the `tattoo-feed-dev` container, at 100% coverage** (
+          +floor is 90%). No                                             
+       90 +`BLOCKERS.md` — nothing blocked. Two extra non-chunk commits p
+          +recede chunk 0:                                               
+       91 +`chore: init` (pre-existing) and `chore: add governance docs a
+          +nd Docker dev                                                 
+       92 +harness` (CLAUDE.md, PLAN.md, REVIEW.md, Dockerfile, .dockerig
+          +nore, run-loop.sh).                                           
+       93  
+       89 -**Anything I flagged for you:** [ free text from the loop — su
+          -rprises,                                                      
+       90 -assumptions made, anything in BLOCKERS.md, anything worth a cl
+          -oser look ]                                                   
+       94   No newline at end of file
+       95 +**Anything I flagged for you:**                               
+       96 +                                                              
+       97 +- **Image rendering is NOT verified.** Automated tests only as
+          +sert the image                                                
+       98 +  block is *structurally* valid (base64, `image/jpeg`, non-zer
+          +o bytes, long edge                                            
+       99 +  ≤640). Whether it actually displays — and right-way-up — is 
+          +section 4's job.                                              
+      100 +  The EXIF fixture uses orientation 6, so pay attention to whe
+          +ther real photos                                              
+      101 +  come back correctly oriented (not sideways).                
+      102 +                                                              
+      103 +- **Graph error-code mapping is best-effort and unverified aga
+          +inst the live                                                 
+      104 +  API.** All HTTP is mocked, so the mapping from Instagram err
+          +ors to typed                                                  
+      105 +  errors uses documented codes/subcodes (token=190, rate-limit
+          +∈{4,17,32},                                                   
+      106 +  not-professional subcode 2207013, not-found subcode 2207006)
+          +. The first time                                              
+      107 +  you hit a *real* error (e.g. add a personal account, or let 
+          +the token expire),                                            
+      108 +  confirm it maps to the right typed error and a readable mess
+          +age. If Instagram's                                           
+      109 +  actual codes differ, the mapping in `graph/client.py` is the
+          + one place to tweak.                                          
+      110 +                                                              
+      111 +- **Two deliberate deviations from PLAN §6 contracts (UX calls
+          +):**                                                          
+      112 +  1. `remove_artist`, `remove_from_inspiration`, and `reset_se
+          +en` return a short                                            
+      113 +     confirmation *string* rather than `None`, so the chat cli
+          +ent shows something                                           
+      114 +     useful. Still thin wrappers, no logic.                   
+      115 +  2. `save_to_inspiration(post_id)` resolves the post by scann
+          +ing the *current                                              
+      116 +     feed* (no separate post cache). You can therefore only sa
+          +ve a post that's                                              
+      117 +     currently in the feed / was just shown by `next_inspirati
+          +on`; saving an                                                
+      118 +     unknown id raises `TattooFeedError` with a clear message.
+          + Worth confirming                                             
+      119 +     this matches how you expect to use it.                   
+      120 +                                                              
+      121 +- **Missing credentials raise the base `TattooFeedError`** (no
+          +t a dedicated                                                 
+      122 +  `ConfigError`), because PLAN §5 fixes the error hierarchy. T
+          +he message tells                                              
+      123 +  you to copy `.env.example` to `.env`.                       
+      124 +                                                              
+      125 +- **Dependency versions** were pinned to whatever was latest-s
+          +table in the build                                            
+      126 +  container at install time (notably `mcp==1.27.2`, `pydantic=
+          +=2.13.4`,                                                     
+      127 +  `Pillow==12.2.0`, `httpx==0.28.1`; dev: `ruff==0.15.17`, `my
+          +py==2.1.0`,                                                   
+      128 +  `pytest==9.1.0`). All exact-pinned; `uv.lock` is committed. 
+      129 +                                                              
+      130 +- **`.venv` gotcha:** the gate ran in the Linux container, so 
+          +the `.venv` in this                                           
+      131 +  folder is Linux-built. If you re-run the gate directly on ma
+          +cOS, do a fresh                                               
+      132 +  `uv sync` first (the committed `uv.lock` is platform-indepen
+          +dent; the `.venv`                                             
+      133 +  is gitignored).                                             
+      134   No newline at end of file
+
+⏺ Now commit the filled-in REVIEW.md and do a final clean gate run + status
+  check.
+
+⏺ Bash(cd /Users/tobyhuxtable/Documents/tattoo-feed
+      git add REVIEW.md…)
+  ⎿  ===== FINAL CLEAN GATE (container) =====
+     28 files already formatted
+     All checks passed!
+     … +20 lines (ctrl+o to expand)
+
+⏺ All nine chunks are committed green, the working tree is clean, the build is
+  on feat/auto-build, and nothing touched main. Let me tidy up the helper
+  container I used for the gate.
+
+⏺ Bash(cd /Users/tobyhuxtable/Documents/tattoo-feed
+      docker rm -f tattoo-build >/dev/null 2>&1 && echo "removed build container
+      (image tattoo-feed-dev kept)")
+  ⎿  removed build container (image tattoo-feed-dev kept)
+
+⏺ The overnight build is complete. I worked all nine chunks in order, ran the
+  full CLAUDE.md §4 gate inside the tattoo-feed-dev container after each, and
+  made one Conventional Commit per chunk on feat/auto-build. No rules were bent
+  — no test or tooling config was weakened, all Instagram HTTP stayed mocked
+  with respx, no secrets, nothing on main. No BLOCKERS.md was needed.
+
+  What landed
+
+  ┌─────────────────┬─────────┬─────────────────────────────────────────────┐
+  │      Chunk      │ Commit  │                   Result                    │
+  ├─────────────────┼─────────┼─────────────────────────────────────────────┤
+  │ 0 — scaffold &  │ 0e37558 │ pinned deps + uv.lock, CI gate              │
+  │ toolchain       │         │                                             │
+  ├─────────────────┼─────────┼─────────────────────────────────────────────┤
+  │ 1 — domain      │ cbeb294 │ Pydantic v2 frozen models, typed errors     │
+  │ models & errors │         │                                             │
+  ├─────────────────┼─────────┼─────────────────────────────────────────────┤
+  │ 2 — repository  │ 3a28eb6 │ JSON stores, atomic writes                  │
+  │ layer           │         │                                             │
+  ├─────────────────┼─────────┼─────────────────────────────────────────────┤
+  │ 3 — graph       │ 22da1cf │ video filter, carousels, TTL cache, 429     │
+  │ client (mocked) │         │ backoff, typed errors                       │
+  ├─────────────────┼─────────┼─────────────────────────────────────────────┤
+  │ 4 — image       │ 53482e7 │ 640px/q85 preview, EXIF strip               │
+  │ processing      │         │                                             │
+  ├─────────────────┼─────────┼─────────────────────────────────────────────┤
+  │ 5 — core        │ 85a6fb8 │ feed/artist/inspiration/preference          │
+  │ services        │         │                                             │
+  ├─────────────────┼─────────┼─────────────────────────────────────────────┤
+  │ 6 — MCP server  │ e687261 │ 11 tools, lazy config, real stdio boot      │
+  │ + boot test     │         │                                             │
+  ├─────────────────┼─────────┼─────────────────────────────────────────────┤
+  │ 7 — docs &      │ e4d31a7 │ full README                                 │
+  │ polish          │         │                                             │
+  ├─────────────────┼─────────┼─────────────────────────────────────────────┤
+  │ 8 — image       │ 8583dcc │ real base64 image block in next_inspiration │
+  │ rendering       │         │                                             │
+  └─────────────────┴─────────┴─────────────────────────────────────────────┘
+
+  Final gate: ruff format ✓, ruff check ✓, mypy --strict ✓, pytest 102 passed — 
+  100% coverage (floor is 90%). The stdio boot test confirms the server starts
+  with dummy env, no network, and lists exactly the PLAN §6 tool surface.
+
+  Important — not "verified"
+
+  Per CLAUDE.md §11, I'm not declaring this finished-and-verified. Automated
+  tests confirm the image block is structurally valid (base64, image/jpeg,
+  ≤640px), but whether images actually render — and right-way-up — needs your 
+  eyes. REVIEW.md is filled in (only its two bracketed sections); start with
+  section 4, the eyeball check. I also flagged there: the Graph error-code
+  mapping is unverified against the live API, and two small deliberate UX
+  deviations from the §6 contracts (confirmation strings instead of None;
+  save_to_inspiration resolves from the current feed).
+
+  A couple of notes for you:
+  - The tattoo-feed-dev image is kept; I only removed the temporary helper
+  container I ran the gate in.
+  - The .venv in the folder was built inside Linux — if you run the gate
+  directly on macOS, do a fresh uv sync first.
+
+  Morning steps to go live are in REVIEW.md (copy .env.example → .env, add real
+  IG_ACCESS_TOKEN/IG_USER_ID, register the server with your MCP client).
+
+  This was the final chunk, so I'm stopping here — the loop ends rather than
+  scheduling another iteration.
+
+✻ Baked for 26m 4s
+
+※ recap: Goal: build the Tattoo Feed MCP server overnight via PLAN.md. All 9 chunks (0–8) are committed green on feat/auto-build at 100% coverage, REVIEW.md filled in. Next: you do the manual eyeball check that images actually render (REVIEW.md section 4). (disable recaps in /config)                                         
