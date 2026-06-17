@@ -45,7 +45,7 @@ src/tattoo_feed/
   repositories/        # Repository ABC + JSON-file stores (atomic writes)
   graph/client.py      # Business Discovery client
   services/            # FeedService, ArtistService, InspirationService, PreferenceService
-  server/app.py        # FastMCP tools + stdio/HTTP entrypoint
+  server/app.py        # build_server() factory; FastMCP tools and stdio/HTTP entrypoint
   server/auth.py       # OAuth 2.1 JWT verifier (resource-server side)
   server/widgets/      # Apps SDK widget HTML served as ui:// MCP resource
 ```
@@ -242,6 +242,12 @@ The tool returns three channels (per the Apps SDK spec):
 - **Lazy credentials.** The server boots and lists its tools with no network and
   no real credentials; tokens are only read when a tool actually calls Instagram
   or when the auth middleware validates a bearer token.
+- **Constructor-injected auth via factory.** `build_server(auth_cfg)` is the
+  single place a `FastMCP` instance is created. Auth is supplied only through the
+  SDK's public `auth=` and `token_verifier=` constructor parameters — no
+  private-attribute writes — so the SDK's own pair-validation fires and
+  `mypy --strict` sees the typed boundary. Passing `None` builds an unauthenticated
+  server for stdio; the HTTP path passes the live `AuthConfig`.
 - **Hermetic tests.** All Instagram HTTP is mocked with `respx`; JWKS is mocked
   with test-generated RSA keypairs; there are zero live network calls in the
   test suite. (`mypy --strict`, `ruff`, and a 90% coverage floor are enforced.)

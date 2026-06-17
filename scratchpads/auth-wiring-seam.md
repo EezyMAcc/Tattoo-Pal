@@ -1,5 +1,27 @@
 # The auth-wiring seam — two coupled fragilities in `server/app.py`
 
+> **STATUS: RESOLVED (2026-06-17, branch `refactor/auth`)** — The two structural
+> fragilities documented in Parts 1–3 were closed by the phase-3 refactor:
+>
+> 1. **Private-attribute write (Part 1):** `mcp._token_verifier = verifier` is gone.
+>    Auth is configured exclusively through `FastMCP`'s public `auth=` /
+>    `token_verifier=` constructor parameters inside `build_server(auth_cfg)`.
+>    The SDK's own pair-validation fires at construction; `mypy --strict` sees the
+>    typed boundary.
+>
+> 2. **Pragma blind spot (Part 2):** The `# pragma: no cover` region shrank to
+>    just the `mcp.run()` / transport-dispatch tail. The auth wiring is covered by
+>    a hermetic behavioural test (`tests/test_server_auth.py`) that drives
+>    `build_server(auth_cfg)` through a Starlette `TestClient` and asserts:
+>    tokenless → `401`, valid token admitted, wrong scope → `403`, metadata
+>    endpoint → `200`. This guards against both attribute-rename and
+>    semantic-change risks.
+>
+> **Still open:** Bug 2 (`421 Invalid Host header`, Part 4) is **not** resolved
+> by phase 3. The SDK bakes `settings.transport_security` at `FastMCP` construction
+> time; the `server.settings.host` override in `main()` does not update it. See
+> Part 4 for the diagnosis and the two fix options.
+
 A from-first-principles reference for two things in the phase-2 server that look
 small but sit on top of a fair amount of hidden machinery:
 
