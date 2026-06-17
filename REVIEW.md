@@ -9,11 +9,11 @@ actually rendering in ChatGPT, and the real OAuth login.
 
 ## 0. First glance
 
-- [ ] `BLOCKERS.md`? If present, read it first — it says which chunk stopped and
+- [✅] `BLOCKERS.md`? If present, read it first — it says which chunk stopped and
   why. Everything below still applies to the chunks that landed.
-- [ ] `git log --oneline` on `feat/remote-app` — one clean commit per chunk
+- [✅] `git log --oneline` on `feat/remote-app` — one clean commit per chunk
   (0 → 5), plus the Chunk 0 archival commit. `main` untouched.
-- [ ] `git status` clean.
+- [✅] `git status` clean.
 
 ## 1. Gate still green (in the container)
 
@@ -24,16 +24,16 @@ uv run mypy --strict src
 uv run pytest -q --cov=src/tattoo_feed --cov-report=term-missing --cov-fail-under=90
 ```
 
-- [ ] All four exit 0. Coverage ≥ 90%.
-- [ ] The rewritten `next_inspiration` / image tests assert the **widget**
+- [✅] All four exit 0. Coverage ≥ 90%.
+- [✅] The rewritten `next_inspiration` / image tests assert the **widget**
   contract (outputTemplate meta + registered `ui://` resource + data URL in
   `_meta`), not the old image block. Confirm they did not just get weakened.
 
 ## 2. Secrets & archival hygiene
 
-- [ ] `git grep` for the token prefix / `client_secret` / private-key markers →
+- [✅] `git grep` for the token prefix / `client_secret` / private-key markers →
   nothing committed. `.env` not staged.
-- [ ] Phase-1 docs are archived in `build_artifacts/` as `Phase1_*.md` and
+- [✅] Phase-1 docs are archived in `build_artifacts/` as `Phase1_*.md` and
   untouched; the phase-2 governance docs live at the repo root.
 
 ## 3. Bring it up (container + tunnel)
@@ -82,6 +82,19 @@ This is the reason phase 2 exists. Look with your eyes:
 - [ ] New files small and single-purpose; docstrings/annotations match new
   signatures; errors typed.
 - [ ] README explains the remote/OAuth/widget setup and the honest limitations.
+- [ ] **Auth-wiring seam (read before signing off the auth path).** Two coupled
+  fragilities in `server/app.py`, written up from first principles in
+  `scratchpads/auth-wiring-seam.md`:
+  1. `main()` attaches the verifier via `mcp._token_verifier = verifier` — a
+     *private* SDK attribute with no public setter. Works only because the SDK
+     reads it lazily at `mcp.run()`; an SDK rename would disable auth **silently**
+     (server boots unauthenticated) and `mypy --strict` cannot catch it.
+  2. That wiring lives inside `main()`, the one sanctioned `# pragma: no cover`
+     region, so **no test exercises it** — its correctness rests entirely on the
+     manual `curl → 401` check in §4 above, not the gate.
+  The scratchpad proposes a ~10-line `configure_auth()` extraction that pins the
+  attribute name, exercises the `AnyHttpUrl`/scope coercion, and shrinks the
+  uncovered region to just `mcp.run()`. Decide whether to apply it.
 
 -----
 

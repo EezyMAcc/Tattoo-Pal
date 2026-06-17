@@ -29,8 +29,11 @@ services:
   ngrok:
     image: ngrok/ngrok:latest
     # Plain TLS ingress only — no ngrok OAuth action; auth lives in the server.
-    # To use a stable domain, append: --domain=${NGROK_DOMAIN}
-    command: ["http", "http://server:8000", "--log=stdout"]
+    # Binds the reserved domain from NGROK_DOMAIN (.env, a *bare hostname* like
+    # foo.ngrok-free.dev) so the public URL — and the MCP_AUTH_AUDIENCE bound to
+    # it — stays stable across restarts. Uses the modern --url flag and adds the
+    # https:// scheme here (the old --domain flag is deprecated in the agent).
+    command: ["http", "http://server:8000", "--url=https://${NGROK_DOMAIN}", "--log=stdout"]
     environment:
       NGROK_AUTHTOKEN: "${NGROK_AUTHTOKEN}"
     ports:
