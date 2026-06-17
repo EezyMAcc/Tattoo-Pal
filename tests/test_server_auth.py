@@ -2,8 +2,9 @@
 
 A fresh RSA keypair is generated per test session; JWKS fetching is mocked
 with ``respx``; no live IdP or network calls are made.  HTTP 401/403 behaviour
-is verified via Starlette's ``TestClient`` against a minimal FastMCP app wired
-with the real :class:`IdpTokenVerifier`.
+is verified via Starlette's ``TestClient`` against the real
+:func:`~tattoo_feed.server.app.build_server` factory wired with a test
+:class:`AuthConfig` — production construction, not a test-only stub.
 """
 
 from __future__ import annotations
@@ -21,12 +22,9 @@ from cryptography.hazmat.backends import default_backend
 from cryptography.hazmat.primitives.asymmetric import rsa
 from cryptography.hazmat.primitives.asymmetric.rsa import RSAPrivateKey
 from jwt.algorithms import RSAAlgorithm
-from mcp.server.auth.provider import TokenVerifier
-from mcp.server.auth.settings import AuthSettings
-from mcp.server.fastmcp import FastMCP
-from pydantic import AnyHttpUrl
 from starlette.testclient import TestClient
 
+from tattoo_feed.server.app import build_server
 from tattoo_feed.server.auth import (
     _AUDIENCE_ENV,
     _ISSUER_ENV,
@@ -109,31 +107,14 @@ def _make_token(
     return jwt.encode(payload, private_key, algorithm="RS256", headers=headers)
 
 
-# ---------------------------------------------------------------------------
-# Shared helper: build a minimal FastMCP Starlette app with auth
-# ---------------------------------------------------------------------------
-
-
-def _make_auth_app(verifier: TokenVerifier) -> Any:
-    """Create a FastMCP streamable-HTTP app configured with the given verifier.
-
-    Args:
-        verifier: The :class:`~mcp.server.auth.provider.TokenVerifier`
-            implementation to wire into the app.
-
-    Returns:
-        A Starlette ASGI application with auth middleware active.
-    """
-    test_mcp = FastMCP(
-        "test",
-        auth=AuthSettings(
-            issuer_url=AnyHttpUrl(_ISSUER),
-            resource_server_url=AnyHttpUrl(_AUDIENCE),
-            required_scopes=[_SCOPE],
-        ),
-        token_verifier=verifier,
+def _test_auth_cfg() -> AuthConfig:
+    """Return an AuthConfig pointing at the test IdP constants."""
+    return AuthConfig(
+        issuer=_ISSUER,
+        jwks_url=_JWKS_URL,
+        audience=_AUDIENCE,
+        required_scopes=[_SCOPE],
     )
-    return test_mcp.streamable_http_app()
 
 
 # ---------------------------------------------------------------------------
@@ -352,24 +333,21 @@ async def test_verify_token_malformed_jwks_returns_none(
 
 
 # ---------------------------------------------------------------------------
-# HTTP endpoint integration tests (via Starlette TestClient)
+# HTTP endpoint integration tests — drive the real build_server factory
 # ---------------------------------------------------------------------------
 
 
 @respx.mock
 def test_unauthenticated_request_gets_401(
-    rsa_private_key: RSAPrivateKey,
     jwks_body: dict[str, Any],
 ) -> None:
     """A request with no Authorization header receives a 401 with resource_metadata."""
     respx.get(_JWKS_URL).mock(return_value=httpx.Response(200, json=jwks_body))
-    http_client = httpx.AsyncClient()
-    verifier = IdpTokenVerifier(_ISSUER, _JWKS_URL, _AUDIENCE, http_client)
-    app = _make_auth_app(verifier)
+    starlette_app = build_server(_test_auth_cfg()).streamable_http_app()
 
     with warnings.catch_warnings():
         warnings.simplefilter("ignore", DeprecationWarning)
-        with TestClient(app, raise_server_exceptions=False) as client:
+        with TestClient(starlette_app, raise_server_exceptions=False) as client:
             response = client.get("/mcp")
 
     assert response.status_code == 401
@@ -385,14 +363,12 @@ def test_valid_token_is_accepted(
 ) -> None:
     """A request with a valid bearer token passes the auth middleware."""
     respx.get(_JWKS_URL).mock(return_value=httpx.Response(200, json=jwks_body))
-    http_client = httpx.AsyncClient()
-    verifier = IdpTokenVerifier(_ISSUER, _JWKS_URL, _AUDIENCE, http_client)
-    app = _make_auth_app(verifier)
+    starlette_app = build_server(_test_auth_cfg()).streamable_http_app()
     token = _make_token(rsa_private_key)
 
     with warnings.catch_warnings():
         warnings.simplefilter("ignore", DeprecationWarning)
-        with TestClient(app, raise_server_exceptions=False) as client:
+        with TestClient(starlette_app, raise_server_exceptions=False) as client:
             response = client.get("/mcp", headers={"Authorization": f"Bearer {token}"})
 
     # Auth passed: the MCP endpoint itself may return any non-auth error
@@ -406,14 +382,12 @@ def test_wrong_scope_gets_403(
 ) -> None:
     """A valid token that lacks the required scope receives 403 insufficient_scope."""
     respx.get(_JWKS_URL).mock(return_value=httpx.Response(200, json=jwks_body))
-    http_client = httpx.AsyncClient()
-    verifier = IdpTokenVerifier(_ISSUER, _JWKS_URL, _AUDIENCE, http_client)
-    app = _make_auth_app(verifier)
+    starlette_app = build_server(_test_auth_cfg()).streamable_http_app()
     token = _make_token(rsa_private_key, scope="wrong:scope")
 
     with warnings.catch_warnings():
         warnings.simplefilter("ignore", DeprecationWarning)
-        with TestClient(app, raise_server_exceptions=False) as client:
+        with TestClient(starlette_app, raise_server_exceptions=False) as client:
             response = client.get("/mcp", headers={"Authorization": f"Bearer {token}"})
 
     assert response.status_code == 403
@@ -428,14 +402,12 @@ def test_wrong_audience_token_gets_401(
 ) -> None:
     """A token with a wrong aud claim is rejected with 401 at the HTTP layer."""
     respx.get(_JWKS_URL).mock(return_value=httpx.Response(200, json=jwks_body))
-    http_client = httpx.AsyncClient()
-    verifier = IdpTokenVerifier(_ISSUER, _JWKS_URL, _AUDIENCE, http_client)
-    app = _make_auth_app(verifier)
+    starlette_app = build_server(_test_auth_cfg()).streamable_http_app()
     token = _make_token(rsa_private_key, aud="https://other.example.com/")
 
     with warnings.catch_warnings():
         warnings.simplefilter("ignore", DeprecationWarning)
-        with TestClient(app, raise_server_exceptions=False) as client:
+        with TestClient(starlette_app, raise_server_exceptions=False) as client:
             response = client.get("/mcp", headers={"Authorization": f"Bearer {token}"})
 
     assert response.status_code == 401
@@ -446,17 +418,13 @@ def test_wrong_audience_token_gets_401(
 # ---------------------------------------------------------------------------
 
 
-def test_protected_resource_metadata_is_served(
-    rsa_private_key: RSAPrivateKey,
-) -> None:
+def test_protected_resource_metadata_is_served() -> None:
     """The /.well-known/oauth-protected-resource endpoint returns valid metadata."""
-    http_client = httpx.AsyncClient()
-    verifier = IdpTokenVerifier(_ISSUER, _JWKS_URL, _AUDIENCE, http_client)
-    app = _make_auth_app(verifier)
+    starlette_app = build_server(_test_auth_cfg()).streamable_http_app()
 
     with warnings.catch_warnings():
         warnings.simplefilter("ignore", DeprecationWarning)
-        with TestClient(app, raise_server_exceptions=False) as client:
+        with TestClient(starlette_app, raise_server_exceptions=False) as client:
             response = client.get("/.well-known/oauth-protected-resource")
 
     assert response.status_code == 200

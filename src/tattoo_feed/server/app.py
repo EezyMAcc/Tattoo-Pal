@@ -30,7 +30,7 @@ from tattoo_feed.repositories.json_repo import (
     PreferenceRepository,
     SeenSetRepository,
 )
-from tattoo_feed.server.auth import IdpTokenVerifier, load_auth_config
+from tattoo_feed.server.auth import AuthConfig, IdpTokenVerifier, load_auth_config
 from tattoo_feed.services.artists import ArtistService
 from tattoo_feed.services.feed import FeedService
 from tattoo_feed.services.inspiration import InspirationService
@@ -41,6 +41,16 @@ DEFAULT_DATA_DIR = "data"
 HTTP_TIMEOUT_SECONDS = 30.0
 _DEFAULT_HOST = "0.0.0.0"  # noqa: S104  in-container bind-all default
 _DEFAULT_PORT = 8000
+
+_INSTRUCTIONS = (
+    "Browse and curate posts from a hand-picked list of Instagram tattoo "
+    "artists. Use next_inspiration to discover one post at a time, "
+    "save_to_inspiration to bookmark favourites, and record_preference to "
+    "remember the user's taste."
+)
+
+_WIDGET_URI = "ui://widget/inspiration.html"
+_WIDGET_PATH = Path(__file__).parent / "widgets" / "inspiration.html"
 
 
 @dataclass
@@ -65,26 +75,6 @@ def resolve_transport() -> TransportConfig:
             port=int(os.environ.get("MCP_PORT", str(_DEFAULT_PORT))),
         )
     return TransportConfig(transport="stdio", host=_DEFAULT_HOST, port=_DEFAULT_PORT)
-
-
-mcp = FastMCP(
-    "tattoo-feed",
-    instructions=(
-        "Browse and curate posts from a hand-picked list of Instagram tattoo "
-        "artists. Use next_inspiration to discover one post at a time, "
-        "save_to_inspiration to bookmark favourites, and record_preference to "
-        "remember the user's taste."
-    ),
-)
-
-_WIDGET_URI = "ui://widget/inspiration.html"
-_WIDGET_PATH = Path(__file__).parent / "widgets" / "inspiration.html"
-
-
-@mcp.resource(_WIDGET_URI, mime_type="text/html;profile=mcp-app")
-def _widget_inspiration() -> str:
-    """ChatGPT Apps SDK widget that renders the next_inspiration preview image."""
-    return _WIDGET_PATH.read_text(encoding="utf-8")
 
 
 @dataclass
@@ -144,13 +134,16 @@ def _format_post(post: Post) -> str:
     )
 
 
-@mcp.tool()
+def _widget_inspiration() -> str:
+    """ChatGPT Apps SDK widget that renders the next_inspiration preview image."""
+    return _WIDGET_PATH.read_text(encoding="utf-8")
+
+
 def list_artists() -> list[Artist]:
     """List the tattoo artists currently being tracked."""
     return _get_services().artists.list_artists()
 
 
-@mcp.tool()
 def add_artist(handle: str) -> Artist:
     """Track a new artist by Instagram handle.
 
@@ -160,14 +153,12 @@ def add_artist(handle: str) -> Artist:
     return _get_services().artists.add_artist(handle)
 
 
-@mcp.tool()
 def remove_artist(handle: str) -> str:
     """Stop tracking the artist with the given handle."""
     _get_services().artists.remove_artist(handle)
     return f"Stopped tracking @{handle}."
 
 
-@mcp.tool()
 def get_feed(limit_per_artist: int = 10) -> list[Post]:
     """Return recent posts from all tracked artists, newest first.
 
@@ -176,7 +167,6 @@ def get_feed(limit_per_artist: int = 10) -> list[Post]:
     return _get_services().feed.get_feed(limit_per_artist)
 
 
-@mcp.tool()
 def next_inspiration() -> CallToolResult:
     """Show one not-yet-seen post for inspiration, then mark it seen.
 
@@ -221,33 +211,28 @@ def next_inspiration() -> CallToolResult:
     )
 
 
-@mcp.tool()
 def save_to_inspiration(post_id: str, notes: str | None = None) -> InspirationItem:
     """Bookmark a post (by id, from the current feed) into saved inspiration."""
     return _get_services().inspiration.save_to_inspiration(post_id, notes)
 
 
-@mcp.tool()
 def list_inspiration() -> list[InspirationItem]:
     """List saved inspiration items, in the order they were saved."""
     return _get_services().inspiration.list_inspiration()
 
 
-@mcp.tool()
 def remove_from_inspiration(post_id: str) -> str:
     """Remove a saved inspiration item by post id."""
     _get_services().inspiration.remove_from_inspiration(post_id)
     return f"Removed {post_id} from saved inspiration."
 
 
-@mcp.tool()
 def reset_seen() -> str:
     """Clear the seen-set so next_inspiration starts fresh."""
     _get_services().inspiration.reset_seen()
     return "Inspiration history cleared."
 
 
-@mcp.tool()
 def record_preference(observation: str) -> Preference:
     """Record a note about the user's tattoo taste.
 
@@ -260,10 +245,62 @@ def record_preference(observation: str) -> Preference:
     return _get_services().preferences.record_preference(observation)
 
 
-@mcp.tool()
 def get_preference_summary() -> list[Preference]:
     """Return every recorded taste preference, so a fresh session can reload it."""
     return _get_services().preferences.get_preference_summary()
+
+
+def build_server(auth_cfg: AuthConfig | None) -> FastMCP:
+    """Build a configured FastMCP server instance.
+
+    Constructs the server with or without OAuth authentication, injects auth
+    exclusively through public constructor parameters (never private attribute
+    writes), registers the widget resource and all 11 tools, and returns the
+    ready-to-run instance.
+
+    Args:
+        auth_cfg: Identity-provider settings for resource-server validation.
+            Pass ``None`` for unauthenticated stdio / local-dev use.
+
+    Returns:
+        A :class:`~mcp.server.fastmcp.FastMCP` instance with all tools and the
+        widget resource registered.
+    """
+    if auth_cfg is not None:
+        server = FastMCP(
+            "tattoo-feed",
+            instructions=_INSTRUCTIONS,
+            auth=AuthSettings(
+                issuer_url=AnyHttpUrl(auth_cfg.issuer),
+                resource_server_url=AnyHttpUrl(auth_cfg.audience),
+                required_scopes=auth_cfg.required_scopes or None,
+            ),
+            token_verifier=IdpTokenVerifier(
+                issuer=auth_cfg.issuer,
+                jwks_url=auth_cfg.jwks_url,
+                audience=auth_cfg.audience,
+                http_client=httpx.AsyncClient(),
+            ),
+        )
+    else:
+        server = FastMCP("tattoo-feed", instructions=_INSTRUCTIONS)
+
+    server.resource(_WIDGET_URI, mime_type="text/html;profile=mcp-app")(
+        _widget_inspiration
+    )
+    server.tool()(list_artists)
+    server.tool()(add_artist)
+    server.tool()(remove_artist)
+    server.tool()(get_feed)
+    server.tool()(next_inspiration)
+    server.tool()(save_to_inspiration)
+    server.tool()(list_inspiration)
+    server.tool()(remove_from_inspiration)
+    server.tool()(reset_seen)
+    server.tool()(record_preference)
+    server.tool()(get_preference_summary)
+
+    return server
 
 
 def main() -> None:  # pragma: no cover
@@ -277,25 +314,12 @@ def main() -> None:  # pragma: no cover
     """
     t = resolve_transport()
     if t.transport == "streamable-http":
-        auth_cfg = load_auth_config()
-        if auth_cfg is not None:
-            verifier = IdpTokenVerifier(
-                issuer=auth_cfg.issuer,
-                jwks_url=auth_cfg.jwks_url,
-                audience=auth_cfg.audience,
-                http_client=httpx.AsyncClient(),
-            )
-            mcp.settings.auth = AuthSettings(
-                issuer_url=AnyHttpUrl(auth_cfg.issuer),
-                resource_server_url=AnyHttpUrl(auth_cfg.audience),
-                required_scopes=auth_cfg.required_scopes or None,
-            )
-            mcp._token_verifier = verifier
-        mcp.settings.host = t.host
-        mcp.settings.port = t.port
-        mcp.run(transport="streamable-http")
+        server = build_server(load_auth_config())
+        server.settings.host = t.host
+        server.settings.port = t.port
+        server.run(transport="streamable-http")
     else:
-        mcp.run()
+        build_server(None).run()
 
 
 if __name__ == "__main__":  # pragma: no cover
