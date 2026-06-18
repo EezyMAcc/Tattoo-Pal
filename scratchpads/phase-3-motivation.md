@@ -157,8 +157,8 @@ honest scope.
   (`build-loop.sh` lineage), **inside the docker dev image** (`run-loop.sh`), fresh
   context per chunk, state crossing chunk boundaries only via git commits +
   `BLOCKERS.md`.
-- **One Conventional Commit per passed chunk**, on a **phase-3 branch** (name TBD in
-  the plan); **never on `main`**, never force-push.
+- **One Conventional Commit per passed chunk**, on branch **`refactor/auth`**;
+  **never on `main`**, never force-push.
 - The same anti-cheat rules carry over: never weaken a test or tooling to go green;
   never a live network call in the test path; never commit secrets. A chunk that
   can't pass honestly after 3 attempts → stop, write `BLOCKERS.md`.

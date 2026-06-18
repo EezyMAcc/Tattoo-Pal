@@ -1,0 +1,18 @@
+Warning: no stdin data received in 3s, proceeding without it. If piping from a slow command, redirect stdin explicitly: < /dev/null to skip, or wait longer.
+Chunk 1 is committed green on `refactor/auth`. Here's what was done:
+
+**`src/tattoo_feed/server/app.py`:**
+- Deleted the module-level `mcp = FastMCP(...)` global
+- Stripped all `@mcp.tool()` / `@mcp.resource()` decorators — tools and widget are now plain module-level functions
+- Added `build_server(auth_cfg: AuthConfig | None) -> FastMCP` factory that injects auth exclusively through `FastMCP`'s public `auth=` / `token_verifier=` constructor parameters
+- Rewrote `main()` to call `build_server()` — no `mcp._token_verifier` write remains anywhere
+
+**`tests/test_server_auth.py`:**
+- Removed the private `_make_auth_app()` stub
+- HTTP endpoint tests now drive the real `build_server(_test_auth_cfg())` factory — same 401/valid/403/metadata assertions, production construction
+
+**`tests/test_server_widget.py`:**
+- Migrated from `app.mcp._resource_manager` → `build_server(None)._resource_manager`
+- Added `test_build_server_registers_all_tools` asserting all 11 tools are registered
+
+Gate result: 128 tests, 100% coverage, ruff + mypy clean.

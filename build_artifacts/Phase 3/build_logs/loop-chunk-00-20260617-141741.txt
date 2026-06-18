@@ -1,0 +1,11 @@
+Warning: no stdin data received in 3s, proceeding without it. If piping from a slow command, redirect stdin explicitly: < /dev/null to skip, or wait longer.
+Chunk 0 is complete and committed. Here's what was done:
+
+**Verified against installed `mcp==1.27.2`:**
+- `FastMCP.__init__` accepts `auth=` (keyword-only, `AuthSettings | None`) and `token_verifier=` (positional-or-keyword, `TokenVerifier | None`). The SDK validates the pair at construction — mismatched use raises `ValueError`.
+- `server.tool()(fn)` and `server.resource(uri)(fn)` both return the original function unchanged (true decorator equivalence). The `structured_output=False, meta=...` options also work.
+- `_resource_manager.list_resources()` is synchronous — the existing widget tests calling it without `await` are correct.
+
+**Gate:** 4/4 green, 127 tests, 100% coverage, no `src/` changes.
+
+**Committed:** `PHASE3_RECONCILIATION.md` capturing the baseline gate status, SDK equivalences, parity contract (11 tool names, widget URI/mime, 401/valid/403/metadata HTTP behaviours), and a summary of what Chunk 1 must do.

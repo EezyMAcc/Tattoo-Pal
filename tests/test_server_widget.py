@@ -7,38 +7,101 @@ a live server or making any network calls.
 
 from __future__ import annotations
 
-from tattoo_feed.server import app
+import pytest
+from mcp.server.fastmcp import FastMCP
+
+from tattoo_feed.server.app import build_server
 
 _WIDGET_URI = "ui://widget/inspiration.html"
 
+_EXPECTED_TOOLS = {
+    "list_artists",
+    "add_artist",
+    "remove_artist",
+    "get_feed",
+    "next_inspiration",
+    "save_to_inspiration",
+    "list_inspiration",
+    "remove_from_inspiration",
+    "reset_seen",
+    "record_preference",
+    "get_preference_summary",
+}
 
-async def test_widget_resource_is_registered() -> None:
+
+@pytest.fixture(scope="module")
+def server() -> FastMCP:
+    """A no-auth server built once for the entire module."""
+    return build_server(None)
+
+
+def test_build_server_registers_all_tools(server: FastMCP) -> None:
+    """build_server(None) registers exactly the 11 expected tools."""
+    names = {t.name for t in server._tool_manager.list_tools()}
+    assert names == _EXPECTED_TOOLS
+
+
+async def test_widget_resource_is_registered(server: FastMCP) -> None:
     """The widget resource must be present in the resource manager."""
-    resources = app.mcp._resource_manager.list_resources()
+    resources = server._resource_manager.list_resources()
     uris = {str(r.uri) for r in resources}
     assert _WIDGET_URI in uris
 
 
-async def test_widget_resource_has_mcp_app_mime_type() -> None:
+async def test_widget_resource_has_mcp_app_mime_type(server: FastMCP) -> None:
     """The widget must use the exact mimeType the Apps SDK expects."""
-    resources = app.mcp._resource_manager.list_resources()
+    resources = server._resource_manager.list_resources()
     widget = next(r for r in resources if str(r.uri) == _WIDGET_URI)
     assert widget.mime_type == "text/html;profile=mcp-app"
 
 
-async def test_widget_html_contains_img_tag() -> None:
+async def test_widget_html_contains_img_tag(server: FastMCP) -> None:
     """Widget HTML must include an <img> element for the preview image."""
-    resources = app.mcp._resource_manager.list_resources()
+    resources = server._resource_manager.list_resources()
     widget = next(r for r in resources if str(r.uri) == _WIDGET_URI)
     html = await widget.read()
     assert isinstance(html, str)
     assert "<img" in html
 
 
-async def test_widget_html_references_openai_bridge() -> None:
+async def test_widget_html_references_openai_bridge(server: FastMCP) -> None:
     """Widget HTML must reference window.openai to receive host-forwarded _meta."""
-    resources = app.mcp._resource_manager.list_resources()
+    resources = server._resource_manager.list_resources()
     widget = next(r for r in resources if str(r.uri) == _WIDGET_URI)
     html = await widget.read()
     assert isinstance(html, str)
     assert "window.openai" in html
+
+
+async def test_widget_html_reads_result_meta_field(server: FastMCP) -> None:
+    """Widget must read the image from toolResponseMetadata (the result _meta).
+
+    The image data URL is delivered in the call result's _meta, which the Apps
+    SDK exposes as window.openai.toolResponseMetadata — not nested under
+    toolOutput (that is the structuredContent). Reading the wrong field leaves
+    the <img> src empty even when the widget renders.
+    """
+    resources = server._resource_manager.list_resources()
+    widget = next(r for r in resources if str(r.uri) == _WIDGET_URI)
+    html = await widget.read()
+    assert isinstance(html, str)
+    assert "toolResponseMetadata" in html
+    # Must re-render on repeated tool calls, not just first load: the host fires
+    # openai:set_globals each call (Apps SDK reference). Missing this is the
+    # "worked once then stopped" bug — the image only shows on the first call.
+    assert "openai:set_globals" in html
+
+
+def test_next_inspiration_descriptor_declares_widget(server: FastMCP) -> None:
+    """The next_inspiration tool descriptor must advertise its output widget.
+
+    The Apps SDK host decides whether to render a widget from the tool
+    descriptor's `openai/outputTemplate` meta (Phase2_RESEARCH §1.2). Without it
+    the host renders plain text and the preview image never appears, regardless
+    of what the call result carries.
+    """
+    tool = next(
+        t for t in server._tool_manager.list_tools() if t.name == "next_inspiration"
+    )
+    assert tool.meta is not None
+    assert tool.meta.get("openai/outputTemplate") == _WIDGET_URI
