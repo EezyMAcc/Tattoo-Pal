@@ -1,4 +1,4 @@
-# Tattoo Feed
+# Tattoo Pal
 
 > A calm, bounded way to spend time with the tattoo artists you admire — inside
 > your AI chat, without Instagram's feed.
