@@ -1,4 +1,4 @@
-"""Tattoo Feed: an MCP server for curating Instagram tattoo-artist posts.
+"""Tattoo Pal: an MCP server for curating Instagram tattoo-artist posts.
 
 The package is split into a pure ``core`` (models, errors, repositories, the
 Graph client, imaging, and services) and a thin ``server`` adapter that exposes

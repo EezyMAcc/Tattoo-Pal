@@ -158,3 +158,41 @@ it then keeps the blast radius contained and reviewable.
    then do it standalone with a full gate re-run.
 
 The whole user-visible rename is steps 2–3. Step 4 is a separate, optional project.
+
+---
+
+## 7. What was actually changed (execution log — 2026-06-18)
+
+A partial Layer 1 pass was applied on branch `the-rename`, then the server change
+was deliberately reverted. Current state of the working tree:
+
+**Changed (and kept):**
+- `README.md` — three prose "Tattoo Feed" → "Tattoo Pal" mentions (intro,
+  read-and-curate note, and the "How it works" diagram). The ASCII diagram's
+  right-hand `Instagram / Business / Discovery` labels were nudged left by one
+  column to restore alignment, since "Pal" is one character shorter than "Feed".
+- `RETROACTIVE_PRD.md` — the title and the intro sentence.
+- `src/tattoo_feed/__init__.py` — the package docstring's product name
+  ("Tattoo Feed: an MCP server…" → "Tattoo Pal: …"). This was a Layer 1 prose
+  spot the original §1 survey missed; it is the product name, not the
+  `tattoo_feed` identifier, so it falls on the "change" side of the line.
+
+**Reverted (left as `tattoo-feed`):**
+- `src/tattoo_feed/server/app.py` — the MCP server display-name string. Both
+  `FastMCP("tattoo-feed", …)` sites were changed to `"tattoo-pal"` and then
+  reverted on request. So the connector ChatGPT shows is **still labelled
+  `tattoo-feed`** — the one user-facing piece of Layer 1 that is *not* yet done.
+
+**Not touched (per §3/§4, as planned):** all Layer 3 identifiers (`tattoo_feed`
+package, `pyproject.toml` dist name, `--cov=src/tattoo_feed`, the
+`python -m tattoo_feed.server.app` entrypoint, `TattooFeedError`,
+`TATTOO_FEED_DATA_DIR`, Docker image / compose / `run-server.sh` references),
+Layer 2 (directory + remote), and the `build_artifacts/` archive.
+
+**Gate:** ran green with all edits in place (ruff clean, mypy clean, 135 tests
+passing at 100% coverage) before the server revert. The kept changes are
+docs/docstring-only and don't affect the gate.
+
+**Status:** uncommitted; pausing here. To finish the user-visible rename later,
+the open item is the server display name in `app.py` (revert of the revert),
+then Layer 2.

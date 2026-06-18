@@ -1,7 +1,7 @@
-# PRD.md — Tattoo Feed (retroactive, illustrative)
+# PRD.md — Tattoo Pal (retroactive, illustrative)
 
 > **This is a retroactive PRD, written for illustration — it is not a governing
-> document.** Tattoo Feed was built from an implementation plan (`PLAN.md`), a
+> document.** Tattoo Pal was built from an implementation plan (`PLAN.md`), a
 > technical contract reference (`RESEARCH.md`), process governance (`CLAUDE.md`),
 > and an acceptance checklist (`REVIEW.md`). None of those is a product
 > requirements document. This file reconstructs what a PRD *would* have said,

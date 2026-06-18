@@ -3,7 +3,7 @@
 > A calm, bounded way to spend time with the tattoo artists you admire — inside
 > your AI chat, without Instagram's feed.
 
-Tattoo Feed brings an artist's recent work to you **one piece at a time**, in a
+Tattoo Pal brings an artist's recent work to you **one piece at a time**, in a
 conversation, so you can sit with it, react, keep what resonates, and over time
 see how your own taste shows up across real work. It is the opposite of an
 infinite algorithmic scroll: you look at what you asked for and leave when
@@ -23,7 +23,7 @@ but does not display it. Since *actually seeing the work* is the whole point, th
 product targets the ChatGPT connector over HTTP. A stdio transport exists for
 local development, but it does not render the image.
 
-> Read-and-curate only: Tattoo Feed never posts, comments, or messages, and
+> Read-and-curate only: Tattoo Pal never posts, comments, or messages, and
 > previews are downscaled copies — see [Attribution](#attribution--copyright).
 
 ---
@@ -31,9 +31,9 @@ local development, but it does not render the image.
 ## How it works
 
 ```
-You ──▶ ChatGPT ──(OAuth-gated HTTP)──▶ Tattoo Feed (MCP server) ──▶ Instagram
-                                            │                         Business
-                          renders the  ◀────┘  next_inspiration         Discovery
+You ──▶ ChatGPT ──(OAuth-gated HTTP)──▶ Tattoo Pal (MCP server) ──▶ Instagram
+                                            │                        Business
+                          renders the  ◀────┘  next_inspiration        Discovery
                           Apps SDK widget       returns a widget +
                           (image inline)        downscaled preview
 ```
