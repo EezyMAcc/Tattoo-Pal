@@ -13,10 +13,12 @@ import os
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Literal
+from urllib.parse import urlparse
 
 import httpx
 from mcp.server.auth.settings import AuthSettings
 from mcp.server.fastmcp import FastMCP
+from mcp.server.transport_security import TransportSecuritySettings
 from mcp.types import CallToolResult, TextContent
 from pydantic import AnyHttpUrl
 
@@ -250,13 +252,59 @@ def get_preference_summary() -> list[Preference]:
     return _get_services().preferences.get_preference_summary()
 
 
+def _public_host(audience: str) -> str:
+    """Return the bare ``host[:port]`` from the resource-server audience URL.
+
+    The audience (``MCP_AUTH_AUDIENCE``) is the canonical public URL of this
+    server, e.g. ``https://my-name.ngrok-free.dev/``. Behind a tunnel the
+    inbound ``Host`` header carries exactly this netloc, so it is the value that
+    must appear on the DNS-rebinding allow-list (see ``_allow_public_host``).
+
+    Args:
+        audience: The resource-server audience URL.
+
+    Returns:
+        The URL's network location, e.g. ``my-name.ngrok-free.dev``.
+    """
+    return urlparse(audience).netloc
+
+
+def _allow_public_host(server: FastMCP, audience: str) -> None:
+    """Re-point the SDK's DNS-rebinding guard at this server's real public host.
+
+    ``FastMCP`` derives ``settings.transport_security`` from its ``host``
+    constructor argument (default ``127.0.0.1``), freezing the allowed-``Host``
+    list to localhost at construction time; the later ``settings.host`` override
+    in :func:`main` does not re-derive it. Behind a tunnel every request then
+    arrives with the public ``Host`` and is refused with ``421``. Reassigning
+    ``transport_security`` after construction *is* honoured, because the
+    middleware reads it per-request.
+
+    This is hygiene, not a load-bearing control: this server is public and
+    OAuth-gated, so DNS rebinding (a localhost-targeting browser attack) cannot
+    reach it. Keeping the guard on but scoped to the real host documents the
+    server's identity and fails safe if a browser-facing surface is added later.
+    Localhost is retained so in-container and health-check access still work.
+
+    Args:
+        server: The constructed FastMCP server to reconfigure.
+        audience: The resource-server audience URL the public host derives from.
+    """
+    host = _public_host(audience)
+    server.settings.transport_security = TransportSecuritySettings(
+        allowed_hosts=[host, f"{host}:*", "127.0.0.1:*", "localhost:*"],
+        allowed_origins=[f"https://{host}"],
+    )
+
+
 def build_server(auth_cfg: AuthConfig | None) -> FastMCP:
     """Build a configured FastMCP server instance.
 
     Constructs the server with or without OAuth authentication, injects auth
     exclusively through public constructor parameters (never private attribute
     writes), registers the widget resource and all 11 tools, and returns the
-    ready-to-run instance.
+    ready-to-run instance. When auth is configured, the DNS-rebinding allow-list
+    is re-pointed at the public host (see :func:`_allow_public_host`).
 
     Args:
         auth_cfg: Identity-provider settings for resource-server validation.
@@ -282,6 +330,7 @@ def build_server(auth_cfg: AuthConfig | None) -> FastMCP:
                 http_client=httpx.AsyncClient(),
             ),
         )
+        _allow_public_host(server, auth_cfg.audience)
     else:
         server = FastMCP("tattoo-feed", instructions=_INSTRUCTIONS)
 

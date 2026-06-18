@@ -361,18 +361,30 @@ def test_valid_token_is_accepted(
     rsa_private_key: RSAPrivateKey,
     jwks_body: dict[str, Any],
 ) -> None:
-    """A request with a valid bearer token passes the auth middleware."""
+    """A valid bearer token passes auth *and* the DNS-rebinding host check.
+
+    The request is driven from the allow-listed audience host
+    (``mcp.example.com``), not the ``TestClient`` default ``testserver`` — with
+    the default host the transport-security guard (correctly) returns ``421``
+    before the MCP layer is reached. ``421`` is asserted *out* so a host-check
+    regression can no longer hide behind a non-auth status.
+    """
     respx.get(_JWKS_URL).mock(return_value=httpx.Response(200, json=jwks_body))
     starlette_app = build_server(_test_auth_cfg()).streamable_http_app()
     token = _make_token(rsa_private_key)
 
     with warnings.catch_warnings():
         warnings.simplefilter("ignore", DeprecationWarning)
-        with TestClient(starlette_app, raise_server_exceptions=False) as client:
+        with TestClient(
+            starlette_app,
+            base_url="https://mcp.example.com",
+            raise_server_exceptions=False,
+        ) as client:
             response = client.get("/mcp", headers={"Authorization": f"Bearer {token}"})
 
-    # Auth passed: the MCP endpoint itself may return any non-auth error
-    assert response.status_code not in (401, 403)
+    # Past auth AND past the host check: the MCP endpoint may return any other
+    # non-auth status, but never 401/403 (auth) or 421 (rejected host).
+    assert response.status_code not in (401, 403, 421)
 
 
 @respx.mock
@@ -433,3 +445,62 @@ def test_protected_resource_metadata_is_served() -> None:
     assert body["resource"] == _AUDIENCE
     assert _ISSUER in body["authorization_servers"]
     assert _SCOPE in body.get("scopes_supported", [])
+
+
+# ---------------------------------------------------------------------------
+# DNS-rebinding host allow-list (Bug 2 — the 421-under-ngrok regression guard)
+# ---------------------------------------------------------------------------
+
+
+def test_build_server_allowlists_audience_host() -> None:
+    """An auth-configured server adds the audience host to allowed_hosts.
+
+    FastMCP freezes its DNS-rebinding allow-list from the constructor host
+    (localhost) at construction time; behind a tunnel that yields a 421 on every
+    authenticated request. build_server must re-point the guard at the public
+    host derived from the audience. This settings-level assertion catches that
+    regression in the gate, without a live tunnel.
+    """
+    server = build_server(_test_auth_cfg())  # audience = https://mcp.example.com/
+    allowed = server.settings.transport_security.allowed_hosts
+    assert "mcp.example.com" in allowed
+
+
+def test_build_server_no_auth_keeps_localhost_lock() -> None:
+    """Without auth, the server keeps the localhost-locked default (stdio posture).
+
+    The host list is widened only for the authenticated HTTP build; the
+    local/stdio build must stay locked to localhost and never carry a public
+    host.
+    """
+    server = build_server(None)
+    allowed = server.settings.transport_security.allowed_hosts
+    assert "127.0.0.1:*" in allowed
+    assert all("mcp.example.com" not in h for h in allowed)
+
+
+@respx.mock
+def test_disallowed_host_still_rejected(
+    rsa_private_key: RSAPrivateKey,
+    jwks_body: dict[str, Any],
+) -> None:
+    """A valid token from a non-allow-listed Host is still refused with 421.
+
+    Counterpart to test_valid_token_is_accepted: that proves the right host gets
+    through; this proves a wrong host is still blocked — i.e. the guard is
+    narrowed to our host, not disabled.
+    """
+    respx.get(_JWKS_URL).mock(return_value=httpx.Response(200, json=jwks_body))
+    starlette_app = build_server(_test_auth_cfg()).streamable_http_app()
+    token = _make_token(rsa_private_key)
+
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore", DeprecationWarning)
+        with TestClient(
+            starlette_app,
+            base_url="https://evil.example",
+            raise_server_exceptions=False,
+        ) as client:
+            response = client.get("/mcp", headers={"Authorization": f"Bearer {token}"})
+
+    assert response.status_code == 421
