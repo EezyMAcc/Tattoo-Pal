@@ -1,0 +1,10 @@
+Warning: no stdin data received in 3s, proceeding without it. If piping from a slow command, redirect stdin explicitly: < /dev/null to skip, or wait longer.
+Chunk 2 is committed green. All three phase-3 chunks (0 → 2) are on `refactor/auth`. 
+
+**What was done:**
+- `README.md`: updated `server/app.py` description in the architecture tree and added a "Constructor-injected auth via factory" design-decision bullet
+- `REVIEW.md`: written fresh with parity checks, live OAuth login, ChatGPT widget eyeball check, phase-3-specific checks (no global, no private write, pragma scope, wiring test), and flagged the still-open `421` bug (Bug 2 from the seam doc)
+- `scratchpads/auth-wiring-seam.md`: marked RESOLVED for Parts 1–3 (private-attribute write gone, pragma shrunk, behavioural test covers the wiring); Bug 2 (`421 Invalid Host header`) noted as still open with fix directions
+- `scratchpads/phase-3-motivation.md`: "branch name TBD" → `refactor/auth`
+
+Gate: all four commands exit 0, 100% coverage, 128 tests. The build is not declared verified — the live OAuth login and in-ChatGPT widget render require human eyes (see `REVIEW.md` §5–6).

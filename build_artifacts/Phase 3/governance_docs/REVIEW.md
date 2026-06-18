@@ -97,9 +97,10 @@ This is what the product is for. Look with your eyes:
 - [✅] **`# pragma: no cover` is just the `run()` tail.** In `server/app.py`, only
   `main()` and the `if __name__ == "__main__"` guard carry the pragma; the factory
   and all tool functions are fully covered by the gate.
-- [ ] **Behavioural wiring test confirms HTTP auth.** `pytest tests/test_server_auth.py -v`
+- [✅] **Behavioural wiring test confirms HTTP auth.** `pytest tests/test_server_auth.py -v`
   — the four HTTP integration tests (401 / valid-admitted / 403 / metadata) pass
   against the real `build_server` factory; JWKS mocked with `respx`, no live IdP.
+  note: now includes 421, see scratchpads/host-header-421.md for details
 - [✅] **Seam doc closed.**  `scratchpads/auth-wiring-seam.md` is marked RESOLVED at
   the top.
 
