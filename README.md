@@ -1,323 +1,269 @@
 # Tattoo Feed
 
-An **MCP (Model Context Protocol) server** that lets an LLM client browse and
-curate posts from a hand-picked list of Instagram tattoo artists, via
+> A calm, bounded way to spend time with the tattoo artists you admire — inside
+> your AI chat, without Instagram's feed.
+
+Tattoo Feed brings an artist's recent work to you **one piece at a time**, in a
+conversation, so you can sit with it, react, keep what resonates, and over time
+see how your own taste shows up across real work. It is the opposite of an
+infinite algorithmic scroll: you look at what you asked for and leave when
+*you're* done, not when a feed decides to release you.
+
+Under the hood it is a **Model Context Protocol (MCP) server**. You point it at
+the artists you follow (by Instagram handle); from your chat client you can pull
+a merged feed, discover one post at a time, bookmark favourites, and record notes
+about your taste that a future session can reload. Recent work is fetched through
 Instagram's **Business Discovery** API.
 
-You point it at the artists you follow, and from your chat client you can pull a
-merged feed, discover one post at a time, bookmark the ones you like, and record
-notes about your taste so a future session remembers them.
+**The image renders inline only in ChatGPT.** `next_inspiration` returns a
+ChatGPT **Apps SDK widget** that draws the preview image directly in the
+conversation. This matters because no other tested client shows the image inline
+— ChatGPT does not render raw MCP image blocks, and Claude *receives* the image
+but does not display it. Since *actually seeing the work* is the whole point, the
+product targets the ChatGPT connector over HTTP. A stdio transport exists for
+local development, but it does not render the image.
 
-**Phase 2 makes this a remote, OAuth-protected ChatGPT app.** The product runs
-over an HTTP endpoint that ChatGPT connects to as a custom connector;
-`next_inspiration` returns a ChatGPT Apps SDK **widget** that renders the preview
-image inline.
-
-The widget exists because **no chat client we tested displays a raw MCP image
-content block to the user inline.** ChatGPT does not render image blocks at all;
-Claude *receives* the image and can reason about it, but **does not display it in
-the conversation** (a Claude client limitation, confirmed by manual testing). The
-Apps SDK widget rendered by ChatGPT is the only path that actually puts the image
-in front of you — which is why the product targets the ChatGPT connector over
-HTTP. (stdio remains, but only as a local dev/test transport — see
-[Running](#running).)
+> Read-and-curate only: Tattoo Feed never posts, comments, or messages, and
+> previews are downscaled copies — see [Attribution](#attribution--copyright).
 
 ---
 
-## Architecture
+## How it works
+
+```
+You ──▶ ChatGPT ──(OAuth-gated HTTP)──▶ Tattoo Feed (MCP server) ──▶ Instagram
+                                            │                         Business
+                          renders the  ◀────┘  next_inspiration         Discovery
+                          Apps SDK widget       returns a widget +
+                          (image inline)        downscaled preview
+```
+
+- **MCP tools** expose the actions (track artists, pull a feed, discover one
+  piece, save, record taste). See [The MCP tools](#the-mcp-tools).
+- **Two-layer codebase**: all logic lives in a transport-agnostic `core`; a thin
+  `server` adapter exposes it as MCP. See [Repository layout](#repository-layout).
+- **OAuth 2.1 resource server**: in HTTP mode every request must carry a valid
+  bearer token from your identity provider. An unauthenticated request gets `401`
+  with a `WWW-Authenticate: Bearer resource_metadata=...` header (RFC 9728); the
+  ChatGPT connector follows this to complete login automatically.
+- **The widget**: the ≤640px preview travels as a data URL in the tool result's
+  `_meta`, which the ChatGPT host forwards to the widget iframe without ever
+  putting the base64 through the model's context window.
+
+---
+
+## Repository layout
+
+### Code — `src/tattoo_feed/`
 
 A deliberate two-layer split so a future GUI can reuse the logic without a
-rewrite:
-
-- **`core`** (`src/tattoo_feed/` excluding `server/`) — all real logic: domain
-  models, typed errors, JSON-file repositories, the Graph API client, image
-  processing, and the services that orchestrate them. Knows nothing about MCP.
-- **`server`** (`src/tattoo_feed/server/`) — a thin
-  [FastMCP](https://github.com/modelcontextprotocol/python-sdk) adapter that
-  exposes `core` as MCP tools. Holds no business logic.
+rewrite. **`core` knows nothing about MCP; `server` holds no business logic.**
 
 ```
 src/tattoo_feed/
   config.py            # lazy env config (IG_ACCESS_TOKEN, IG_USER_ID)
-  errors.py            # typed error hierarchy (TattooFeedError and subclasses)
-  models.py            # Pydantic v2 value objects
+  errors.py            # typed error hierarchy (TattooFeedError + subclasses)
+  models.py            # Pydantic v2 frozen value objects
   imaging.py           # preview downscale + EXIF strip (≤640px JPEG)
   repositories/        # Repository ABC + JSON-file stores (atomic writes)
-  graph/client.py      # Business Discovery client
-  services/            # FeedService, ArtistService, InspirationService, PreferenceService
-  server/app.py        # build_server() factory; FastMCP tools and stdio/HTTP entrypoint
+  graph/client.py      # Instagram Business Discovery client
+  services/            # Feed / Artist / Inspiration / Preference services
+  server/app.py        # build_server() factory; MCP tools; stdio/HTTP entrypoint
   server/auth.py       # OAuth 2.1 JWT verifier (resource-server side)
-  server/widgets/      # Apps SDK widget HTML served as ui:// MCP resource
+  server/widgets/      # Apps SDK widget HTML, served as a ui:// MCP resource
 ```
 
-### Transport modes
+`tests/` mirrors this with a fully **hermetic** suite — Instagram HTTP is mocked
+with `respx`, JWKS with test-generated RSA keypairs, zero live network calls.
 
-| Mode | Role | Who connects |
-|------|------|-----------------|
-| **HTTP** (`MCP_TRANSPORT=http`) | **The product** — remote, OAuth-protected | ChatGPT (renders the widget inline), any remote MCP client |
-| **stdio** (code default) | Local development & testing only | local MCP clients; **does not render the inspiration image inline** |
+### Non-code documentation
 
-HTTP is how the app is actually run and used. stdio is retained as the
-credential-free local entrypoint for development and the hermetic test suite (it
-needs no tunnel or IdP), but it is not a product surface: a local client receives
-the `next_inspiration` text but not the rendered image.
+The repo keeps two kinds of written record alongside the code. Neither is needed
+to run the project; both are kept deliberately, as a window into how it was built.
 
-In HTTP mode the server acts as an **OAuth 2.1 resource server**: every request
-must carry a valid bearer token issued by your identity provider.  An
-unauthenticated request receives `401` with a `WWW-Authenticate: Bearer
-resource_metadata=...` header per RFC 9728; the ChatGPT connector follows this
-to discover and complete the login flow automatically.
+- **`scratchpads/`** — *in-build engineering notes and design deep-dives.* The
+  working reasoning behind specific decisions and bug investigations, written as
+  they happened: e.g. `removing-the-global.md` (why the module-level server
+  global was removed), `auth-wiring-seam.md` and `host-header-421.md` (an auth
+  refactor and the DNS-rebinding `421` it surfaced), `rate-limiting.md`,
+  `built-for-chatgpt.md`. Think of these as the project's lab notebook.
+
+- **`build_artifacts/`** — *an archived record of the phased build.* The project
+  was built in stages (`Phase 1`–`Phase 3`), each driven by its own governing
+  docs — an implementation plan, a technical-contract reference, process rules,
+  and an acceptance checklist — plus the autonomous build-loop scripts and the
+  per-phase build logs. It is purely historical: a snapshot of *how* each stage
+  was specified and run, not live configuration.
+
+- **Root docs** — `RETROACTIVE_PRD.md` reconstructs, at product altitude, the
+  *why / for whom / what "good" means* (a teaching artifact written after the
+  fact); `CLAUDE.md` is the process governance for the build tooling.
 
 ---
 
 ## Setup
 
-Requirements: Python 3.12 and [uv](https://docs.astral.sh/uv/).
+Requirements: **Python 3.12** and [uv](https://docs.astral.sh/uv/).
 
 ```bash
-uv sync                       # create the venv and install pinned deps
-cp .env.example .env          # then edit .env with your real credentials
+uv sync                 # create the venv and install pinned deps
+cp .env.example .env    # then edit .env with your real credentials
 ```
 
 ### Environment variables
 
-#### Always required (Instagram credentials)
+**Always required — Instagram credentials:**
 
 | Variable | Meaning |
 |---|---|
 | `IG_ACCESS_TOKEN` | A long-lived Instagram Graph API access token. |
-| `IG_USER_ID` | The Instagram Business/Creator account id that owns the token. |
+| `IG_USER_ID` | The Instagram **Business/Creator account id** that owns the token (not your Facebook user id). |
 | `TATTOO_FEED_DATA_DIR` | Optional. Where the JSON stores live (default `./data`). |
 
-#### Required for HTTP / ChatGPT mode (OAuth resource-server config)
+**Required for HTTP / ChatGPT mode — OAuth resource-server config:**
 
 | Variable | Meaning |
 |---|---|
-| `MCP_AUTH_ISSUER` | Issuer URL of your IdP — must exactly match the `iss` claim. |
+| `MCP_AUTH_ISSUER` | Issuer URL of your IdP — must exactly match the token's `iss` claim. |
 | `MCP_AUTH_JWKS_URL` | JWKS endpoint used to verify JWT signatures. |
 | `MCP_AUTH_AUDIENCE` | Canonical public URL of this server — the RFC 8707 audience binding. |
-| `MCP_AUTH_REQUIRED_SCOPES` | Comma-separated required scopes (e.g. `mcp:read`). |
-| `NGROK_AUTHTOKEN` | ngrok auth token for TLS ingress. |
+| `MCP_AUTH_REQUIRED_SCOPES` | Comma-separated required scopes (blank for none). |
+| `NGROK_AUTHTOKEN` / `NGROK_DOMAIN` | ngrok auth token and your reserved domain for stable TLS ingress. |
 
-`.env` is gitignored and must never be committed. Only `.env.example` (with
+`.env` is gitignored and must never be committed — only `.env.example` (with
 placeholders) is in the repo.
 
-Getting Instagram credentials is a one-time manual step on Meta's side: create
-a Meta app, connect an Instagram Business/Creator account, and mint a
-**long-lived** access token with Business Discovery permission.
+> **Getting Instagram credentials** is a one-time manual step on Meta's side:
+> create a Meta app, link an Instagram **Business/Creator** account to a Facebook
+> **Page**, and mint a long-lived token with Business Discovery permission. The
+> `IG_USER_ID` must be the *Instagram account id* (via
+> `GET /me/accounts?fields=instagram_business_account`), not your Facebook user id.
 
 ---
 
 ## Running
 
-The product runs over HTTP and is used through ChatGPT — that's the path below.
-The stdio path after it is for local development and tests only and does **not**
-render the inspiration image inline.
+### ChatGPT over HTTP — the product
 
-### Remote (HTTP + OAuth + ngrok — ChatGPT connector) — the product
-
-The quickest path is Docker Compose, which starts the server and the ngrok
-tunnel together:
+`./run-server.sh` builds the image and starts the server + ngrok tunnel together
+(a thin wrapper over `docker compose up --build`):
 
 ```bash
-cp .env.example .env          # fill in all values, including MCP_AUTH_* and NGROK_AUTHTOKEN
-./scripts/run-server.sh       # builds the image and starts server + ngrok
+cp .env.example .env            # fill in all values, including MCP_AUTH_* and NGROK_*
+./run-server.sh
 ```
 
-After startup:
-1. Open the ngrok inspector at `http://localhost:4040` to find the public URL.
+Then:
+
+1. Open the ngrok inspector at `http://localhost:4040` to confirm the public URL.
 2. In ChatGPT, add a **custom connector**:
-   - URL: `https://<your-ngrok-url>/mcp`
+   - URL: `https://<your-ngrok-domain>/mcp`
    - Authentication: **OAuth**
-3. ChatGPT will walk through OAuth discovery and a browser login against your IdP.
+3. ChatGPT walks through OAuth discovery and a browser login against your IdP,
+   then lists the tools.
 
-#### Identity provider (you choose)
+**Identity provider.** The server is IdP-agnostic — it only needs an issuer
+supporting OAuth 2.1 + PKCE, metadata discovery (RFC 8414 / OIDC), and the RFC
+8707 `resource` indicator. [Auth0](https://auth0.com/blog/add-remote-mcp-server-chatgpt/)
+has a documented walkthrough for exactly this setup (Stytch, WorkOS, Descope are
+alternatives). Configure your IdP to issue tokens whose audience is the server's
+public URL (`MCP_AUTH_AUDIENCE`), and register a matching API/resource for it.
 
-The server is IdP-agnostic — it only needs an issuer that supports OAuth 2.1
-with PKCE, RFC 8414/OIDC metadata discovery, RFC 8707 `resource` indicator, and
-Client ID Metadata Documents.  **Auth0** has a documented walkthrough for
-exactly this setup:
-<https://auth0.com/blog/add-remote-mcp-server-chatgpt/>.  Alternatives:
-Stytch, WorkOS, Descope.
+**Stable domain.** Reserve a domain at
+<https://dashboard.ngrok.com/domains> and set `NGROK_DOMAIN` in `.env`, so the
+public URL — and the connector configuration — survive restarts.
 
-Configure your IdP to include the server's public URL (`MCP_AUTH_AUDIENCE`) as
-the audience in the tokens it issues, then set that same URL as the resource
-identifier in the ChatGPT connector.
+### Local development (stdio)
 
-#### Stable domain (recommended)
-
-A new ngrok URL is generated each restart, which breaks the ChatGPT connector
-URL. Reserve a stable domain at <https://dashboard.ngrok.com/domains>, set
-`NGROK_DOMAIN` in `.env`, and add `--domain=${NGROK_DOMAIN}` to the ngrok
-command in `docker-compose.yml`.
-
-### Local development & testing (stdio)
-
-stdio is the credential-free local entrypoint — handy for exercising the tools
-without standing up a tunnel and an IdP, and the transport the hermetic test
-suite boots over. **It is not the product surface: a local stdio client receives
-the `next_inspiration` text but the image does not render inline** (see the note
-at the top of this README). Use ChatGPT over HTTP for the visual experience.
+A credential-free local entrypoint, useful for exercising the tools without a
+tunnel or IdP, and the transport the test suite boots over. **It does not render
+the inspiration image** — use ChatGPT for the visual experience.
 
 ```bash
 uv run python -m tattoo_feed.server.app
 ```
 
-The server speaks the MCP stdio protocol. To wire it into a local MCP client, add:
-
-```json
-{
-  "mcpServers": {
-    "tattoo-feed": {
-      "command": "uv",
-      "args": ["run", "python", "-m", "tattoo_feed.server.app"],
-      "cwd": "/absolute/path/to/tattoo-feed",
-      "env": {
-        "IG_ACCESS_TOKEN": "your-token",
-        "IG_USER_ID": "your-business-user-id"
-      }
-    }
-  }
-}
-```
-
-### In the dev container (gate / CI)
-
-A dev image (`Dockerfile`) bundles Python, `uv`, Node, and the toolchain:
-
-```bash
-docker build -t tattoo-feed-dev .
-./run-loop.sh        # mounts $PWD to /workspace, nothing else on your machine
-```
+Wire it into a local MCP client with `command: "uv"`,
+`args: ["run", "python", "-m", "tattoo_feed.server.app"]`, the project as `cwd`,
+and `IG_ACCESS_TOKEN` / `IG_USER_ID` in `env`.
 
 ---
 
-## The tools (MCP surface)
+## The MCP tools
 
 | Tool | What it does |
 |------|--------------|
 | `list_artists` | List tracked artists. |
 | `add_artist(handle)` | Validate the handle is a reachable **professional** account, then track it. |
 | `remove_artist(handle)` | Stop tracking a handle. |
-| `get_feed(limit_per_artist=10)` | Merged, newest-first feed. Metadata + permalinks only (no images). |
-| `next_inspiration()` | One **not-yet-seen** post, marked seen. Returns an Apps SDK widget; the image renders inline **only in ChatGPT**. Other clients receive the text but not a rendered image. |
+| `get_feed(limit_per_artist=10)` | Merged, newest-first feed — metadata + permalinks only (no images). |
+| `next_inspiration()` | One **not-yet-seen** post, marked seen. Returns the Apps SDK widget; image renders inline **only in ChatGPT**. |
 | `save_to_inspiration(post_id, notes=None)` | Bookmark a post into the saved collection. |
 | `list_inspiration()` | The saved collection, in save order. |
 | `remove_from_inspiration(post_id)` | Remove a saved item. |
 | `reset_seen()` | Clear the seen-set so inspiration starts fresh. |
-| `record_preference(observation)` | Persist a taste note (**propose-then-confirm**, see below). |
+| `record_preference(observation)` | Persist a taste note (**propose-then-confirm**). |
 | `get_preference_summary()` | All recorded preferences, to reload taste in a fresh session. |
-
-### How `next_inspiration` surfaces in ChatGPT
-
-The tool returns three channels (per the Apps SDK spec):
-
-- **`structuredContent`** — handle, permalink, caption — what the model narrates.
-  No base64.
-- **`content`** — plain text the model can narrate. In a non-ChatGPT client this
-  is *all* you see — the image is not rendered there (Claude receives the image
-  but does not display it inline; other clients show only this text).
-- **widget** — an HTML/JS component registered at `ui://widget/inspiration.html`
-  (mimeType `text/html;profile=mcp-app`) that the ChatGPT host renders inline.
-  The preview image travels as a data URL in `_meta` so it reaches the widget
-  without passing through the model's context window. **This is the only channel
-  that renders the image to the user, and only ChatGPT honours it.**
 
 ---
 
-## Design decisions
+## Design notes
 
 - **Two-layer split (core / server).** MCP concepts never leak into `core`;
-  business logic never leaks into `server`. This is what makes a future GUI a
-  bolt-on rather than a rewrite.
-- **JSON-file persistence behind a `Repository` interface.** Simple,
-  inspectable, and swappable. Writes are **atomic** (temp file + `os.replace`)
-  so a crash mid-write can never corrupt a store.
-- **Pydantic v2 frozen models** for everything crossing a boundary, so external
-  data is validated once and treated as immutable values thereafter.
-- **Typed error hierarchy** (`TattooFeedError` and friends). Every external
-  failure maps to a typed error; nothing raises bare exceptions across a
-  boundary, so the client always gets a readable message instead of a stack
-  trace.
+  business logic never leaks into `server`. A future GUI is a bolt-on, not a
+  rewrite.
+- **JSON-file persistence behind a `Repository` interface.** Simple, inspectable,
+  swappable. Writes are atomic (temp file + `os.replace`) so a crash mid-write
+  can't corrupt a store.
 - **Lazy credentials.** The server boots and lists its tools with no network and
-  no real credentials; tokens are only read when a tool actually calls Instagram
-  or when the auth middleware validates a bearer token.
-- **Constructor-injected auth via factory.** `build_server(auth_cfg)` is the
-  single place a `FastMCP` instance is created. Auth is supplied only through the
-  SDK's public `auth=` and `token_verifier=` constructor parameters — no
-  private-attribute writes — so the SDK's own pair-validation fires and
-  `mypy --strict` sees the typed boundary. Passing `None` builds an unauthenticated
-  server for stdio; the HTTP path passes the live `AuthConfig`.
-- **Hermetic tests.** All Instagram HTTP is mocked with `respx`; JWKS is mocked
-  with test-generated RSA keypairs; there are zero live network calls in the
-  test suite. (`mypy --strict`, `ruff`, and a 90% coverage floor are enforced.)
-- **Widget image as data URL in `_meta`.** The ≤640px preview is base64-encoded
-  into `_meta.imageDataUrl`. The ChatGPT host forwards `_meta` to the widget
-  iframe without exposing it to the model, so the base64 blob never inflates the
-  model's context window.
-- **Images only where they earn their context.** Only `next_inspiration` returns
-  a rendered image — the one-at-a-time conversational moment. `get_feed` stays
-  metadata-only to keep the context window light.
+  no real credentials; tokens are read only when a tool calls Instagram or the
+  auth middleware validates a bearer token.
+- **Constructor-injected auth via a factory.** `build_server(auth_cfg)` is the
+  single place a server instance is created, with auth supplied through the SDK's
+  public `auth=` / `token_verifier=` parameters — no private-attribute writes.
+  Passing `None` builds the unauthenticated stdio server.
+- **Widget image as a data URL in `_meta`.** Only `next_inspiration` returns a
+  rendered image — the one-at-a-time moment that earns the context. `get_feed`
+  stays metadata-only to keep the context window light.
+- **Typed errors, frozen models, strict typing.** Every external failure maps to
+  a `TattooFeedError`; boundary data is validated once into immutable Pydantic v2
+  values; `mypy --strict`, `ruff`, and a 90% coverage floor are enforced.
 
 ---
 
 ## Limitations (by design)
 
-- **No video.** Video posts are filtered out entirely at the Graph-client layer
-  and never enter the feed, inspiration, or stores.
-- **Carousels show the first image only.** Multi-image expansion is out of scope.
-- **Manual token refresh.** There is no automatic token refresh. When the token
-  expires, tools fail with a clear `TokenExpiredError` telling you to mint a new
-  long-lived token and update `IG_ACCESS_TOKEN`.
-- **Preview sizing is fixed.** Previews are capped at **640px on the long edge**,
-  aspect ratio preserved, never upscaled, re-encoded as **JPEG quality 85**.
-- **`record_preference` is propose-then-confirm.** The tool persists whatever it
-  is given; the *discipline* of proposing the observation to you and getting your
-  explicit confirmation **before** the tool is called lives in the tool's
-  description, so the calling assistant honours it.
-- **No write access to Instagram.** No posting, commenting, or messaging — this
-  is strictly read-and-curate.
-- **Single account.** The server is wired to one Instagram Business/Creator
-  account (set via `IG_USER_ID`). OAuth gates *who may call*, not *which account*
-  is queried. Multi-account support would require per-session service
-  construction, which is out of scope.
-- **IdP dependency.** The server relies on an external identity provider for
-  token issuance. The IdP must be set up and configured before the ChatGPT
-  connector will complete its OAuth login.
-- **Inline image rendering is ChatGPT-only.** The image renders inline only via
-  the Apps SDK widget in ChatGPT. No other tested client displays it: ChatGPT
-  does not render raw MCP image blocks, and Claude receives the image but does
-  not show it in the conversation (a Claude client limitation found in manual
-  testing). This — not just model preference — is why the product targets the
-  ChatGPT connector.
-- **Widget visual verification is manual.** The automated gate confirms the
-  widget resource is registered and the `_meta` fields are present, but whether
-  the image actually renders in ChatGPT's UI requires a human eyeball check (see
-  `REVIEW.md`).
-- **No self-hosted authorization server.** The server acts as a resource server
-  only; it does not issue tokens. Use Auth0, Stytch, WorkOS, Descope, or another
-  IdP that supports the OAuth 2.1 + PKCE + RFC 8707 flow.
+- **Inline image rendering is ChatGPT-only** — the Apps SDK widget is the one
+  channel that shows the image; no other tested client displays it.
+- **No video, carousels show the first image only.** Still imagery, filtered at
+  the Graph-client layer.
+- **Single account.** Wired to one Instagram account (`IG_USER_ID`); OAuth gates
+  *who may call*, not *which account* is queried.
+- **Manual token refresh.** No auto-refresh; an expired token fails with a clear
+  `TokenExpiredError`.
+- **Resource-server only.** The server validates tokens but does not issue them —
+  it relies on an external IdP that must be configured first.
+- **Widget render is human-verified.** The gate confirms the widget is registered
+  and the `_meta` is present; whether the image actually paints in ChatGPT is an
+  eyeball check.
 
 ---
 
 ## Attribution & copyright
 
-Posts belong to the artists who made them. This tool is for **personal
-discovery and curation**, not redistribution:
+Posts belong to the artists who made them. This tool is for **personal discovery
+and curation**, not redistribution:
 
-- Previews are **downscaled** copies (≤640px, EXIF stripped), not
-  full-resolution downloads.
+- Previews are **downscaled** copies (≤640px, EXIF stripped), never full-res.
 - Every image and saved item carries the artist's **handle** and the post's
-  **permalink**, so attribution travels with the content and you can always open
-  the original on Instagram.
-- Respect each artist's rights: don't repost or reuse their work without
-  permission.
+  **permalink**, so attribution travels with the content.
+- Respect each artist's rights: don't repost or reuse their work without permission.
 
 ---
 
 ## Development
 
-The full gate (must all exit 0):
+The full gate (all must exit 0):
 
 ```bash
 uv run ruff format --check .

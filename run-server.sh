@@ -7,7 +7,7 @@
 #
 # Usage:
 #   cp .env.example .env          # edit with real credentials
-#   ./scripts/run-server.sh       # builds image, starts stack
+#   ./run-server.sh               # builds image, starts stack
 #
 # After startup:
 #   - ngrok inspector at http://localhost:4040 shows the public URL.
@@ -22,8 +22,7 @@
 
 set -euo pipefail
 
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-REPO_ROOT="$(dirname "$SCRIPT_DIR")"
+REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 if [[ ! -f "$REPO_ROOT/.env" ]]; then
     echo "Error: .env not found."
