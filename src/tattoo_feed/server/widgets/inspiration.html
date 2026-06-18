@@ -28,14 +28,25 @@
       link.textContent = meta.permalink ? "View on Instagram →" : "";
     }
 
-    // Primary path: host sets window.openai.toolOutput before the widget loads.
-    // The host forwards _meta so image data stays out of the model context
-    // (RESEARCH.md §1.4 — keeps base64 away from the LLM token stream).
-    if (window.openai && window.openai.toolOutput) {
-      render(window.openai.toolOutput._meta || window.openai.toolOutput);
+    // The host exposes the tool result's _meta (where the image data URL lives)
+    // as window.openai.toolResponseMetadata, and the structuredContent as
+    // window.openai.toolOutput. Reading the _meta keeps base64 out of the model
+    // context (RESEARCH.md §1.4); fall back to toolOutput for the text fields.
+    function update() {
+      if (window.openai) {
+        render(window.openai.toolResponseMetadata || window.openai.toolOutput);
+      }
     }
 
-    // Fallback: listen for the host's tool-result postMessage notification.
+    update();  // initial render on first load
+
+    // Repeated tool calls update the window.openai globals in place rather than
+    // reloading this script; the host fires `openai:set_globals` each time (Apps
+    // SDK reference). Without re-rendering on it, the image only appears on the
+    // first call and subsequent cards stay blank ("worked once then stopped").
+    window.addEventListener("openai:set_globals", update);
+
+    // Fallback: some hosts also push results via a postMessage notification.
     window.addEventListener("message", function(event) {
       var d = event.data;
       if (!d || d.method !== "ui/notifications/tool-result") return;

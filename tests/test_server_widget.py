@@ -71,3 +71,37 @@ async def test_widget_html_references_openai_bridge(server: FastMCP) -> None:
     html = await widget.read()
     assert isinstance(html, str)
     assert "window.openai" in html
+
+
+async def test_widget_html_reads_result_meta_field(server: FastMCP) -> None:
+    """Widget must read the image from toolResponseMetadata (the result _meta).
+
+    The image data URL is delivered in the call result's _meta, which the Apps
+    SDK exposes as window.openai.toolResponseMetadata — not nested under
+    toolOutput (that is the structuredContent). Reading the wrong field leaves
+    the <img> src empty even when the widget renders.
+    """
+    resources = server._resource_manager.list_resources()
+    widget = next(r for r in resources if str(r.uri) == _WIDGET_URI)
+    html = await widget.read()
+    assert isinstance(html, str)
+    assert "toolResponseMetadata" in html
+    # Must re-render on repeated tool calls, not just first load: the host fires
+    # openai:set_globals each call (Apps SDK reference). Missing this is the
+    # "worked once then stopped" bug — the image only shows on the first call.
+    assert "openai:set_globals" in html
+
+
+def test_next_inspiration_descriptor_declares_widget(server: FastMCP) -> None:
+    """The next_inspiration tool descriptor must advertise its output widget.
+
+    The Apps SDK host decides whether to render a widget from the tool
+    descriptor's `openai/outputTemplate` meta (Phase2_RESEARCH §1.2). Without it
+    the host renders plain text and the preview image never appears, regardless
+    of what the call result carries.
+    """
+    tool = next(
+        t for t in server._tool_manager.list_tools() if t.name == "next_inspiration"
+    )
+    assert tool.meta is not None
+    assert tool.meta.get("openai/outputTemplate") == _WIDGET_URI

@@ -341,7 +341,16 @@ def build_server(auth_cfg: AuthConfig | None) -> FastMCP:
     server.tool()(add_artist)
     server.tool()(remove_artist)
     server.tool()(get_feed)
-    server.tool()(next_inspiration)
+    # Declare the widget on the tool *descriptor* (not just the call result) so
+    # the Apps SDK host knows to render the inspiration widget for this tool's
+    # output (Phase2_RESEARCH §1.2). Without descriptor meta the host falls back
+    # to plain text and the preview image never renders.
+    server.tool(
+        meta={
+            "openai/outputTemplate": _WIDGET_URI,
+            "ui": {"resourceUri": _WIDGET_URI},
+        }
+    )(next_inspiration)
     server.tool()(save_to_inspiration)
     server.tool()(list_inspiration)
     server.tool()(remove_from_inspiration)
