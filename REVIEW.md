@@ -9,11 +9,11 @@ rendering in ChatGPT and the real OAuth login.
 
 ## 0. First glance
 
-- [ ] `BLOCKERS.md`? If present, read it first — it says which chunk stopped and
+- [✅] `BLOCKERS.md`? If present, read it first — it says which chunk stopped and
   why. Everything below still applies to the chunks that landed.
-- [ ] `git log --oneline` on `refactor/auth` — one clean commit per chunk (0 → 2).
+- [✅] `git log --oneline` on `refactor/auth` — one clean commit per chunk (0 → 2).
   `main` untouched.
-- [ ] `git status` clean.
+- [✅] `git status` clean.
 
 ## 1. Gate still green (in the container)
 
@@ -24,82 +24,83 @@ uv run mypy --strict src
 uv run pytest -q --cov=src/tattoo_feed --cov-report=term-missing --cov-fail-under=90
 ```
 
-- [ ] All four exit 0. Coverage ≥ 90% (target: 100%).
+- [✅] All four exit 0. Coverage ≥ 90% (target: 100%).
 
 ## 2. Parity confirmation (what must not have changed)
 
-- [ ] **Tool set unchanged.** The boot test (`test_server_boot.py`) passes, and
+- [✅] **Tool set unchanged.** The boot test (`test_server_boot.py`) passes, and
   `list_tools()` returns exactly these 11 names in any order:
   `list_artists`, `add_artist`, `remove_artist`, `get_feed`, `next_inspiration`,
   `save_to_inspiration`, `list_inspiration`, `remove_from_inspiration`, `reset_seen`,
   `record_preference`, `get_preference_summary`. No tool added, removed, or renamed.
-- [ ] **stdio still boots unauthenticated.** With dummy env vars
+- [✅] **stdio still boots unauthenticated.** With dummy env vars
   (`IG_ACCESS_TOKEN=x IG_USER_ID=x`), `uv run python -m tattoo_feed.server.app`
   starts over stdio with no auth challenge. Ctrl-C to exit.
-- [ ] **`core` stays MCP-free.** `grep -r "from mcp\|import mcp\|FastMCP" src/tattoo_feed/`
+- [✅] **`core` stays MCP-free.** `grep -r "from mcp\|import mcp\|FastMCP" src/tattoo_feed/`
   returns hits only inside `src/tattoo_feed/server/`.
 
 ## 3. Secrets & archival hygiene
 
-- [ ] `git grep` for token prefixes / `client_secret` / private-key markers →
+- [✅] `git grep` for token prefixes / `client_secret` / private-key markers →
   nothing committed. `.env` not staged.
-- [ ] Phase-1 docs archived in `build_artifacts/Phase 1/` (`Phase1_*.md`) and
+- [✅] Phase-1 docs archived in `build_artifacts/Phase 1/` (`Phase1_*.md`) and
   phase-2 docs in `build_artifacts/Phase 2/` (`Phase2_*.md`) — untouched.
   Root `CLAUDE.md` / `PLAN.md` are the phase-3 governance docs.
 
 ## 4. Bring it up (container + tunnel)
 
-- [ ] `.env` has real Instagram creds, the IdP issuer/JWKS/audience/scopes, and
+- [✅] `.env` has real Instagram creds, the IdP issuer/JWKS/audience/scopes, and
   `NGROK_AUTHTOKEN`.
-- [ ] `docker compose up --build` brings up `server` + `ngrok`.
-- [ ] Public URL resolves (ngrok inspector at `http://localhost:4040`).
+- [✅] `docker compose up --build` brings up `server` + `ngrok`.
+- [✅] Public URL resolves (ngrok inspector at `http://localhost:4040`).
 
 ## 5. Auth actually gates (live check — the gate cannot do this)
 
-- [ ] `curl https://<public-url>/mcp` with **no** token → `401` with a
+- [✅] `curl https://<public-url>/mcp` with **no** token → `401` with a
   `WWW-Authenticate: Bearer ... resource_metadata=...` header.
-- [ ] `curl https://<public-url>/.well-known/oauth-protected-resource` → `200`;
+- [✅] `curl https://<public-url>/.well-known/oauth-protected-resource` → `200`;
   body names your IdP (`resource`, `authorization_servers`, `scopes_supported`).
-- [ ] In ChatGPT, add the connector (URL = public `/mcp`, Auth = **OAuth**). The
+- [✅] In ChatGPT, add the connector (URL = public `/mcp`, Auth = **OAuth**). The
   login flow completes and the connector lists all 11 tools.
 - [ ] A request with an expired/garbage token is refused (not served).
 
   **Watch for `421 Misdirected Request / Invalid Host header`** — see note (2)
   in the "Flagged items" section below.
+    - 421 raised, see scratchpad/host-header-421.md for details and fix applied
 
 ## 6. THE EYEBALL CHECK (image rendering in ChatGPT — the gate cannot verify this)
 
 This is what the product is for. Look with your eyes:
 
-- [ ] Ask ChatGPT to call `next_inspiration`. The preview image **renders inline
+- [✅] Ask ChatGPT to call `next_inspiration`. The preview image **renders inline
   via the widget** (not as text, not as a broken frame).
-- [ ] It is the **right image** for the post (cross-check the permalink shown).
-- [ ] Orientation correct (EXIF applied then stripped); size is a sensible preview
+- [✅] It is the **right image** for the post (cross-check the permalink shown).
+- [✅] Orientation correct (EXIF applied then stripped); size is a sensible preview
   (≤ 640px long edge), not full-res or tiny.
-- [ ] The model's narration (from `structuredContent`) has the handle + permalink
+- [✅] The model's narration (from `structuredContent`) has the handle + permalink
   and does **not** contain a wall of base64 (data travels in `_meta`).
 
 ## 7. Functional smoke test
 
-- [ ] `add_artist` with a real professional handle → succeeds; a personal account →
+- [✅] `add_artist` with a real professional handle → succeeds; a personal account →
   clean typed error, no stack trace.
-- [ ] `get_feed` → newest-first, no videos.
+- [TO DESIGN A WIDGET AND CHANGE THE TOOL FUCNTIONALITY] `get_feed` → newest-first, no videos.
 - [ ] `save_to_inspiration` then `list_inspiration` → saved item present with handle.
 - [ ] `record_preference` → assistant proposes and asks to confirm before writing.
 
 ## 8. Phase-3 specific checks
 
-- [ ] **No module-level `mcp` global.**
+- [✅] **No module-level `mcp` global.**
   `grep -n "^mcp = FastMCP" src/tattoo_feed/server/app.py` → no results.
-- [ ] **No private-attribute auth write.**
+- [✅] **No private-attribute auth write.**
   `grep -rn "_token_verifier" src/` → no results.
-- [ ] **`# pragma: no cover` is just the `run()` tail.** In `server/app.py`, only
+- [✅] **`# pragma: no cover` is just the `run()` tail.** In `server/app.py`, only
   `main()` and the `if __name__ == "__main__"` guard carry the pragma; the factory
   and all tool functions are fully covered by the gate.
 - [ ] **Behavioural wiring test confirms HTTP auth.** `pytest tests/test_server_auth.py -v`
   — the four HTTP integration tests (401 / valid-admitted / 403 / metadata) pass
   against the real `build_server` factory; JWKS mocked with `respx`, no live IdP.
-- [ ] **Seam doc closed.**  `scratchpads/auth-wiring-seam.md` is marked RESOLVED at
+- [✅] **Seam doc closed.**  `scratchpads/auth-wiring-seam.md` is marked RESOLVED at
   the top.
 
 ---
