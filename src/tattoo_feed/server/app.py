@@ -361,23 +361,40 @@ def build_server(auth_cfg: AuthConfig | None) -> FastMCP:
     return server
 
 
-def main() -> None:  # pragma: no cover
-    """Run the MCP server over stdio or HTTP (set MCP_TRANSPORT=http to use HTTP).
+def run_server(transport: TransportConfig) -> None:
+    """Build, configure, and run the MCP server for the given transport.
 
-    When ``MCP_TRANSPORT=http`` and the ``MCP_AUTH_*`` env vars are set, the
-    HTTP server is wrapped with OAuth 2.1 resource-server middleware: every
+    Extracted from :func:`main` so the transport dispatch — server
+    construction, host/port binding, and the HTTP-vs-stdio branch — is
+    exercised by the gate (the tests patch ``FastMCP.run`` to a no-op), leaving
+    only the genuinely un-runnable blocking ``run()`` call behind the pragma in
+    :func:`main`'s thin entry glue.
+
+    When ``transport`` is streamable-http and the ``MCP_AUTH_*`` env vars are
+    set, the server is wrapped with OAuth 2.1 resource-server middleware: every
     request must carry a valid bearer token, and the
     ``/.well-known/oauth-protected-resource`` metadata document is served
     automatically by the SDK.
+
+    Args:
+        transport: The resolved transport configuration.
     """
-    t = resolve_transport()
-    if t.transport == "streamable-http":
+    if transport.transport == "streamable-http":
         server = build_server(load_auth_config())
-        server.settings.host = t.host
-        server.settings.port = t.port
+        server.settings.host = transport.host
+        server.settings.port = transport.port
         server.run(transport="streamable-http")
     else:
         build_server(None).run()
+
+
+def main() -> None:  # pragma: no cover
+    """Entry point: resolve the transport from the environment and run.
+
+    The only un-coverable lines in this module: a single dispatch to
+    :func:`run_server` (itself tested) followed by ``run()`` blocking forever.
+    """
+    run_server(resolve_transport())
 
 
 if __name__ == "__main__":  # pragma: no cover
